@@ -48,3 +48,8 @@ export type PostWithRelations = Post & {
   analyses: Analysis[];
   revisions: Revision[];
 };
+
+export type CurrentUser = {
+  id: string;
+  email: string;
+};

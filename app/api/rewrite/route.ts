@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateRewrite } from "@/lib/ai/rewrite";
 import { writeAuditLog } from "@/lib/audit";
+import { requireUser } from "@/lib/auth";
 
 const MAX_LEN = 2000;
 
@@ -20,10 +21,12 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createClient();
+  const { user, response } = await requireUser(supabase);
+  if (!user) return response;
 
   const { data: post, error: insertError } = await supabase
     .from("posts")
-    .insert({ raw_text: rawText, status: "draft" })
+    .insert({ raw_text: rawText, status: "draft", user_id: user.id })
     .select()
     .single();
 
@@ -38,6 +41,7 @@ export async function POST(request: Request) {
       .from("analyses")
       .insert({
         post_id: post.id,
+        user_id: user.id,
         hook_score: result.hook_score,
         hook_score_source: "openai-gpt-4o",
         hook_score_confidence: result.confidence,
@@ -76,6 +80,7 @@ export async function POST(request: Request) {
 
     await writeAuditLog(supabase, {
       action: "rewrite_post",
+      user_id: user.id,
       post_id: post.id,
       risk_level: "low",
       after_value: result.rewritten_text,
@@ -89,6 +94,7 @@ export async function POST(request: Request) {
       .from("analyses")
       .insert({
         post_id: post.id,
+        user_id: user.id,
         rewritten_text_review_status: "failed",
         lead_gen_score_review_status: "failed",
         rationale: "AI rewrite failed",
@@ -98,6 +104,7 @@ export async function POST(request: Request) {
 
     await writeAuditLog(supabase, {
       action: "rewrite_post",
+      user_id: user.id,
       post_id: post.id,
       risk_level: "low",
       after_value: "failed",

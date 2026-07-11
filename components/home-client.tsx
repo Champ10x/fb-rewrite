@@ -1,13 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { PostWithRelations, Revision } from "@/lib/types";
+import Link from "next/link";
+import type { CurrentUser, PostWithRelations, Revision } from "@/lib/types";
 import { latestAnalysis, sortPosts } from "@/lib/posts";
 import { scoreColor, scoreColorClasses } from "@/lib/scoring";
+import { AuthHeader } from "@/components/auth-header";
 
 const MAX_LEN = 2000;
 
-export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[] }) {
+export function HomeClient({
+  initialPosts,
+  currentUser,
+}: {
+  initialPosts: PostWithRelations[];
+  currentUser: CurrentUser | null;
+}) {
   const [posts, setPosts] = useState<PostWithRelations[]>(initialPosts);
   const [rawText, setRawText] = useState("");
   const [loadingRewrite, setLoadingRewrite] = useState(false);
@@ -16,6 +24,7 @@ export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[]
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [rewriteError, setRewriteError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [revisionLoading, setRevisionLoading] = useState(false);
   const [showRevisions, setShowRevisions] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PostWithRelations | null>(null);
@@ -24,8 +33,13 @@ export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[]
   const sortedPosts = useMemo(() => sortPosts(posts), [posts]);
   const activePost = posts.find((p) => p.id === activePostId) ?? null;
   const activeAnalysis = activePost ? latestAnalysis(activePost) : null;
+  const canEditActive = !!currentUser && !!activePost && activePost.user_id === currentUser.id;
 
   async function handleRewrite() {
+    if (!currentUser) {
+      setAuthNotice("Please log in to rewrite posts");
+      return;
+    }
     const text = rawText.trim();
     if (!text) {
       setValidationError("Please paste a post first");
@@ -36,6 +50,7 @@ export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[]
       return;
     }
     setValidationError(null);
+    setAuthNotice(null);
     setRewriteError(null);
     setLoadingRewrite(true);
     try {
@@ -46,6 +61,10 @@ export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[]
       });
       const data = await res.json();
       if (!res.ok) {
+        if (res.status === 401) {
+          setAuthNotice("Please log in to rewrite posts");
+          return;
+        }
         setRewriteError(data.message ?? "Rewrite failed — please try again.");
         return;
       }
@@ -69,7 +88,7 @@ export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[]
   }
 
   async function handleSave() {
-    if (!activePost) return;
+    if (!activePost || !canEditActive) return;
     const text = draftFinalText.trim();
     if (!text) return;
     setSaveState("saving");
@@ -93,7 +112,7 @@ export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[]
   }
 
   async function handleTryAnother() {
-    if (!activePost) return;
+    if (!activePost || !canEditActive) return;
     setRevisionLoading(true);
     setRewriteError(null);
     try {
@@ -129,6 +148,7 @@ export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[]
     setDraftFinalText(post.final_text ?? post.raw_text);
     setShowRevisions(false);
     setRewriteError(null);
+    setAuthNotice(null);
     setSaveState("idle");
   }
 
@@ -150,11 +170,14 @@ export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[]
   return (
     <main className="min-h-screen bg-neutral-50 pb-24">
       <div className="mx-auto max-w-3xl px-4 pt-12 sm:px-6">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-neutral-900">fb-rewrite</h1>
-          <p className="mt-1 text-neutral-500">
-            Paste a raw Facebook post, get a lead-gen-optimised rewrite with scores.
-          </p>
+        <header className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-neutral-900">fb-rewrite</h1>
+            <p className="mt-1 text-neutral-500">
+              Paste a raw Facebook post, get a lead-gen-optimised rewrite with scores.
+            </p>
+          </div>
+          <AuthHeader email={currentUser?.email ?? null} />
         </header>
 
         <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
@@ -170,7 +193,7 @@ export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[]
             className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
           />
           <div className="mt-1 flex items-center justify-between text-xs text-neutral-400">
-            <span>{validationError ? <span className="text-red-600">{validationError}</span> : " "}</span>
+            <span>{validationError ? <span className="text-red-600">{validationError}</span> : " "}</span>
             <span>
               {rawText.length}/{MAX_LEN}
             </span>
@@ -183,6 +206,14 @@ export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[]
             {loadingRewrite && <Spinner />}
             {loadingRewrite ? "Rewriting…" : "Rewrite"}
           </button>
+          {authNotice && (
+            <p className="mt-2 text-sm text-amber-700">
+              {authNotice} —{" "}
+              <Link href="/login" className="underline underline-offset-2">
+                log in
+              </Link>
+            </p>
+          )}
         </section>
 
         {activePost && (
@@ -190,6 +221,21 @@ export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[]
             {rewriteError && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {rewriteError}
+              </div>
+            )}
+            {!canEditActive && (
+              <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-500">
+                {currentUser
+                  ? "This is a shared demo post — paste your own post above to create an editable version."
+                  : (
+                    <>
+                      Read-only demo post.{" "}
+                      <Link href="/login" className="underline underline-offset-2">
+                        Log in
+                      </Link>{" "}
+                      to rewrite, save, and manage your own posts.
+                    </>
+                  )}
               </div>
             )}
 
@@ -208,37 +254,40 @@ export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[]
               rows={4}
               value={draftFinalText}
               onChange={(e) => setDraftFinalText(e.target.value)}
-              className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+              disabled={!canEditActive}
+              className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500 disabled:bg-neutral-50 disabled:text-neutral-400"
             />
 
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <button
-                onClick={handleSave}
-                disabled={saveState === "saving" || !draftFinalText.trim()}
-                className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : "Save"}
-              </button>
-              {saveState === "error" && <span className="text-sm text-red-600">Save failed — check connection</span>}
-
-              <button
-                onClick={handleTryAnother}
-                disabled={revisionLoading}
-                className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {revisionLoading && <Spinner dark />}
-                {revisionLoading ? "Generating…" : "Try Another Rewrite"}
-              </button>
-
-              {activePost.revisions.length > 0 && (
+            {canEditActive && (
+              <div className="mt-3 flex flex-wrap items-center gap-3">
                 <button
-                  onClick={() => setShowRevisions((s) => !s)}
-                  className="text-sm font-medium text-neutral-500 underline-offset-2 hover:underline"
+                  onClick={handleSave}
+                  disabled={saveState === "saving" || !draftFinalText.trim()}
+                  className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {showRevisions ? "Hide" : "Show"} Revision History ({activePost.revisions.length})
+                  {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : "Save"}
                 </button>
-              )}
-            </div>
+                {saveState === "error" && <span className="text-sm text-red-600">Save failed — check connection</span>}
+
+                <button
+                  onClick={handleTryAnother}
+                  disabled={revisionLoading}
+                  className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {revisionLoading && <Spinner dark />}
+                  {revisionLoading ? "Generating…" : "Try Another Rewrite"}
+                </button>
+
+                {activePost.revisions.length > 0 && (
+                  <button
+                    onClick={() => setShowRevisions((s) => !s)}
+                    className="text-sm font-medium text-neutral-500 underline-offset-2 hover:underline"
+                  >
+                    {showRevisions ? "Hide" : "Show"} Revision History ({activePost.revisions.length})
+                  </button>
+                )}
+              </div>
+            )}
 
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <ScoreCard label="Hook" value={activeAnalysis?.hook_score} max={10} />
@@ -295,6 +344,7 @@ export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[]
             <ul className="space-y-3">
               {sortedPosts.map((post) => {
                 const analysis = latestAnalysis(post);
+                const isMine = !!currentUser && post.user_id === currentUser.id;
                 return (
                   <li
                     key={post.id}
@@ -309,6 +359,9 @@ export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[]
                       </p>
                       <div className="mt-2 flex items-center gap-2 text-xs text-neutral-400">
                         <StatusBadge status={post.status} />
+                        {!isMine && (
+                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-neutral-400">demo</span>
+                        )}
                         <span>{new Date(post.created_at).toLocaleString()}</span>
                       </div>
                     </div>
@@ -323,14 +376,16 @@ export function HomeClient({ initialPosts }: { initialPosts: PostWithRelations[]
                           onClick={() => handleView(post)}
                           className="rounded-lg border border-neutral-300 px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
                         >
-                          View/Edit
+                          {isMine ? "View/Edit" : "View"}
                         </button>
-                        <button
-                          onClick={() => setDeleteTarget(post)}
-                          className="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                        >
-                          Delete
-                        </button>
+                        {isMine && (
+                          <button
+                            onClick={() => setDeleteTarget(post)}
+                            className="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                          >
+                            Delete
+                          </button>
+                        )}
                       </div>
                     </div>
                   </li>

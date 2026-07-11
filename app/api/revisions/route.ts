@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateRewrite } from "@/lib/ai/rewrite";
 import { writeAuditLog } from "@/lib/audit";
+import { requireUser } from "@/lib/auth";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -13,6 +14,8 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createClient();
+  const { user, response } = await requireUser(supabase);
+  if (!user) return response;
 
   try {
     const result = await generateRewrite(rawText);
@@ -21,6 +24,7 @@ export async function POST(request: Request) {
       .from("revisions")
       .insert({
         post_id: postId,
+        user_id: user.id,
         rewritten_text: result.rewritten_text,
         lead_gen_score: result.lead_gen_score,
       })
@@ -33,6 +37,7 @@ export async function POST(request: Request) {
 
     await writeAuditLog(supabase, {
       action: "generate_revision",
+      user_id: user.id,
       post_id: postId,
       risk_level: "medium",
       after_value: result.rewritten_text,

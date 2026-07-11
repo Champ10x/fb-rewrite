@@ -14,3 +14,4 @@ next-env.d.ts
 dev.cmd
 dev-out.log
 dev-err.log
+supabase/.temp
