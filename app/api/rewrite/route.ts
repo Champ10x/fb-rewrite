@@ -24,18 +24,17 @@ export async function POST(request: Request) {
   const { user, response } = await requireUser(supabase);
   if (!user) return response;
 
-  const { data: post, error: insertError } = await supabase
-    .from("posts")
-    .insert({ raw_text: rawText, status: "draft", user_id: user.id })
-    .select()
-    .single();
+  const [{ data: post, error: insertError }, { data: brandVoice }] = await Promise.all([
+    supabase.from("posts").insert({ raw_text: rawText, status: "draft", user_id: user.id }).select().single(),
+    supabase.from("brand_voices").select("*").eq("user_id", user.id).maybeSingle(),
+  ]);
 
   if (insertError || !post) {
     return NextResponse.json({ error: "db_error", message: "Could not save your post" }, { status: 500 });
   }
 
   try {
-    const result = await generateRewrite(rawText);
+    const result = await generateRewrite(rawText, brandVoice);
 
     const { data: analysis, error: analysisError } = await supabase
       .from("analyses")

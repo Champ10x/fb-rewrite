@@ -18,7 +18,12 @@ export async function POST(request: Request) {
   if (!user) return response;
 
   try {
-    const result = await generateRewrite(rawText);
+    const { data: brandVoice } = await supabase
+      .from("brand_voices")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const result = await generateRewrite(rawText, brandVoice);
 
     const { data: revision, error } = await supabase
       .from("revisions")

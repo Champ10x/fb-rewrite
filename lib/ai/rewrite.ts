@@ -1,3 +1,5 @@
+import type { BrandVoice } from "@/lib/types";
+
 export type RewriteResult = {
   rewritten_text: string;
   hook_score: number;
@@ -8,7 +10,7 @@ export type RewriteResult = {
   rationale: string;
 };
 
-const SYSTEM_PROMPT = `You are an expert Facebook copywriter specializing in lead generation for local service businesses.
+const BASE_PROMPT = `You are an expert Facebook copywriter specializing in lead generation for local service businesses.
 
 Given a raw, unpolished Facebook post, rewrite it to maximize leads:
 - First sentence names a pain point or asks a question (the hook)
@@ -26,11 +28,35 @@ Then score the rewrite you produced:
 Respond with ONLY a JSON object, no markdown, matching exactly this shape:
 {"rewritten_text": string, "hook_score": number, "cta_score": number, "urgency_score": number, "lead_gen_score": number, "confidence": number, "rationale": string}`;
 
-export async function generateRewrite(rawText: string): Promise<RewriteResult> {
+function brandVoiceGuide(brandVoice: BrandVoice | null | undefined): string {
+  if (!brandVoice) return "";
+
+  const lines: string[] = [];
+  if (brandVoice.voice_keywords.length) lines.push(`Voice: ${brandVoice.voice_keywords.join(", ")}`);
+  if (brandVoice.content_style.length) lines.push(`Style: ${brandVoice.content_style.join(", ")}`);
+  if (brandVoice.words_to_use.length) lines.push(`Prefer these words/phrases: ${brandVoice.words_to_use.join(", ")}`);
+  if (brandVoice.words_to_avoid.length) lines.push(`Never use these words/phrases: ${brandVoice.words_to_avoid.join(", ")}`);
+  if (brandVoice.cta_style.length) lines.push(`CTA style: ${brandVoice.cta_style.join(", ")}`);
+  if (brandVoice.cta_examples.length) lines.push(`CTA examples to model: ${brandVoice.cta_examples.join(" | ")}`);
+  if (brandVoice.caption_length_pref) lines.push(`Caption length: ${brandVoice.caption_length_pref}`);
+  if (brandVoice.persona_note) lines.push(`Persona: ${brandVoice.persona_note}`);
+  if (brandVoice.audience_feelings.length) lines.push(`The audience should feel: ${brandVoice.audience_feelings.join(", ")}`);
+
+  if (!lines.length) return "";
+
+  return `\n\nWrite in this specific brand voice — treat it as a strict style guide, overriding any generic tone above:\n${lines.map((l) => `- ${l}`).join("\n")}`;
+}
+
+export async function generateRewrite(
+  rawText: string,
+  brandVoice?: BrandVoice | null,
+): Promise<RewriteResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is not configured");
   }
+
+  const systemPrompt = BASE_PROMPT + brandVoiceGuide(brandVoice);
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -43,7 +69,7 @@ export async function generateRewrite(rawText: string): Promise<RewriteResult> {
       temperature: 0.7,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: rawText },
       ],
     }),

@@ -2,21 +2,27 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { CurrentUser, PostWithRelations, Revision } from "@/lib/types";
+import type { BrandVoice, CurrentUser, PostWithRelations, Revision } from "@/lib/types";
 import { latestAnalysis, sortPosts } from "@/lib/posts";
 import { scoreColor, scoreColorClasses } from "@/lib/scoring";
 import { AuthHeader } from "@/components/auth-header";
+import { BrandVoiceWizard } from "@/components/brand-voice-wizard";
 
 const MAX_LEN = 2000;
 
 export function HomeClient({
   initialPosts,
   currentUser,
+  initialBrandVoice,
 }: {
   initialPosts: PostWithRelations[];
   currentUser: CurrentUser | null;
+  initialBrandVoice: BrandVoice | null;
 }) {
   const [posts, setPosts] = useState<PostWithRelations[]>(initialPosts);
+  const [brandVoice, setBrandVoice] = useState<BrandVoice | null>(initialBrandVoice);
+  const [showWizard, setShowWizard] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [rawText, setRawText] = useState("");
   const [loadingRewrite, setLoadingRewrite] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
@@ -177,8 +183,43 @@ export function HomeClient({
               Paste a raw Facebook post, get a lead-gen-optimised rewrite with scores.
             </p>
           </div>
-          <AuthHeader email={currentUser?.email ?? null} />
+          <div className="flex shrink-0 items-center gap-3">
+            {currentUser && (
+              <button
+                onClick={() => setShowWizard(true)}
+                className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                {brandVoice ? "Edit brand voice" : "Set up brand voice"}
+              </button>
+            )}
+            <AuthHeader email={currentUser?.email ?? null} />
+          </div>
         </header>
+
+        {currentUser && !brandVoice && !bannerDismissed && (
+          <div className="mb-6 flex items-start justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <div>
+              <p className="text-sm font-medium text-neutral-900">Get rewrites that sound like you</p>
+              <p className="mt-0.5 text-sm text-neutral-500">
+                Answer a few quick questions about your brand voice and every rewrite will match your tone.
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button
+                onClick={() => setShowWizard(true)}
+                className="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700"
+              >
+                Set up
+              </button>
+              <button
+                onClick={() => setBannerDismissed(true)}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-neutral-500 hover:bg-neutral-100"
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        )}
 
         <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
           <label htmlFor="raw-text" className="mb-2 block text-sm font-medium text-neutral-700">
@@ -421,6 +462,16 @@ export function HomeClient({
             </div>
           </div>
         </div>
+      )}
+
+      {showWizard && (
+        <BrandVoiceWizard
+          onClose={() => setShowWizard(false)}
+          onComplete={(bv) => {
+            setBrandVoice(bv);
+            setShowWizard(false);
+          }}
+        />
       )}
     </main>
   );

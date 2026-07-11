@@ -53,3 +53,21 @@ export type CurrentUser = {
   id: string;
   email: string;
 };
+
+export type BrandVoice = {
+  id: string;
+  user_id: string;
+  voice_keywords: string[];
+  words_to_use: string[];
+  words_to_avoid: string[];
+  content_style: string[];
+  caption_length_pref: string | null;
+  script_length_pref: string | null;
+  cta_style: string[];
+  cta_examples: string[];
+  topics: string[];
+  persona_note: string | null;
+  audience_feelings: string[];
+  created_at: string;
+  updated_at: string;
+};
