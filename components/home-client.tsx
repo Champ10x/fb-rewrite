@@ -6,6 +6,7 @@ import type { BrandVoice, CurrentUser, PostWithRelations, Revision } from "@/lib
 import { latestAnalysis, sortPosts } from "@/lib/posts";
 import { scoreColor, scoreColorClasses } from "@/lib/scoring";
 import { WEEKLY_POST_QUOTA, getWeekStart } from "@/lib/quota";
+import { displayTokens } from "@/lib/tokens";
 import { AuthHeader } from "@/components/auth-header";
 import { BrandVoiceWizard } from "@/components/brand-voice-wizard";
 
@@ -407,8 +408,8 @@ export function HomeClient({
 
             {(activeAnalysis?.rewrite_tokens_used != null || activeAnalysis?.image_tokens_used != null) && (
               <p className="mt-2 text-xs text-neutral-400">
-                Tokens used — text: {activeAnalysis?.rewrite_tokens_used ?? "—"} · image:{" "}
-                {activeAnalysis?.image_tokens_used ?? "—"}
+                Tokens used — text: {displayTokens(activeAnalysis?.rewrite_tokens_used) ?? "—"} · image:{" "}
+                {displayTokens(activeAnalysis?.image_tokens_used) ?? "—"}
               </p>
             )}
 
