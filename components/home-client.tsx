@@ -9,7 +9,7 @@ import { getWeekStart } from "@/lib/quota";
 import { displayTokens } from "@/lib/tokens";
 import { AuthHeader } from "@/components/auth-header";
 import { BrandVoiceWizard } from "@/components/brand-voice-wizard";
-import { Logo } from "@/components/logo";
+import { Sidebar } from "@/components/sidebar";
 
 const MAX_LEN = 2000;
 
@@ -18,11 +18,13 @@ export function HomeClient({
   currentUser,
   initialBrandVoice,
   weeklyQuota,
+  isAdmin,
 }: {
   initialPosts: PostWithRelations[];
   currentUser: CurrentUser | null;
   initialBrandVoice: BrandVoice | null;
   weeklyQuota: number;
+  isAdmin: boolean;
 }) {
   const [posts, setPosts] = useState<PostWithRelations[]>(initialPosts);
   const [brandVoice, setBrandVoice] = useState<BrandVoice | null>(initialBrandVoice);
@@ -208,12 +210,13 @@ export function HomeClient({
   }
 
   return (
-    <main className="min-h-screen bg-[#F7F1E3] pb-24">
+    <div className="flex min-h-screen flex-col bg-[#F7F1E3] md:flex-row">
+      <Sidebar isAdmin={isAdmin} />
+      <main className="flex-1 pb-24">
       <div className="mx-auto max-w-3xl px-4 pt-12 sm:px-6">
         <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <Logo />
-            <p className="mt-1 text-neutral-500">
+            <p className="text-neutral-500">
               Paste a raw Facebook post, get a lead-gen-optimised rewrite with scores.
             </p>
           </div>
@@ -615,7 +618,8 @@ export function HomeClient({
           }}
         />
       )}
-    </main>
+      </main>
+    </div>
   );
 }
 

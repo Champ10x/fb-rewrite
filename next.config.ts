@@ -6,6 +6,12 @@ const nextConfig: NextConfig = {
   // so we don't let them block a deployment.
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
+  experimental: {
+    // Without this, the client-side Router Cache can serve a stale RSC
+    // payload for dynamic pages (e.g. the homepage's quota count) after
+    // navigating away and back via <Link>, until a hard refresh.
+    staleTimes: { dynamic: 0 },
+  },
 };
 
 export default nextConfig;

@@ -61,12 +61,14 @@ export type CurrentUser = {
 
 export type Profile = {
   id: string;
+  email: string | null;
   weekly_credit_allocation: number;
   expiry_date: string | null;
   ip_address: string | null;
   browser: string | null;
   status: string;
   referral: string | null;
+  is_admin: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -87,4 +89,22 @@ export type BrandVoice = {
   audience_feelings: string[];
   created_at: string;
   updated_at: string;
+};
+
+export type QuotaRequest = {
+  id: string;
+  user_id: string;
+  message: string | null;
+  created_at: string;
+};
+
+export type AuditLog = {
+  id: string;
+  user_id: string | null;
+  action: string;
+  post_id: string | null;
+  risk_level: string | null;
+  before_value: string | null;
+  after_value: string | null;
+  created_at: string;
 };

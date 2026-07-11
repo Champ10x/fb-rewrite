@@ -16,13 +16,15 @@ export default async function Home() {
 
   let initialBrandVoice: BrandVoice | null = null;
   let weeklyQuota = WEEKLY_POST_QUOTA;
+  let isAdmin = false;
   if (currentUser) {
     const [{ data: brandVoice }, { data: profile }] = await Promise.all([
       supabase.from("brand_voices").select("*").eq("user_id", currentUser.id).maybeSingle(),
-      supabase.from("profiles").select("weekly_credit_allocation").eq("id", currentUser.id).maybeSingle(),
+      supabase.from("profiles").select("weekly_credit_allocation, is_admin").eq("id", currentUser.id).maybeSingle(),
     ]);
     initialBrandVoice = brandVoice ?? null;
     weeklyQuota = profile?.weekly_credit_allocation ?? WEEKLY_POST_QUOTA;
+    isAdmin = profile?.is_admin ?? false;
   }
 
   return (
@@ -31,6 +33,7 @@ export default async function Home() {
       currentUser={currentUser}
       initialBrandVoice={initialBrandVoice}
       weeklyQuota={weeklyQuota}
+      isAdmin={isAdmin}
     />
   );
 }

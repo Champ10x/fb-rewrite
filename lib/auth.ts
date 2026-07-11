@@ -3,12 +3,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/types";
 
 const DEFAULT_PROFILE: Omit<Profile, "id" | "created_at" | "updated_at"> = {
+  email: null,
   weekly_credit_allocation: 3,
   expiry_date: null,
   ip_address: null,
   browser: null,
   status: "active",
   referral: null,
+  is_admin: false,
 };
 
 export async function requireUser(supabase: SupabaseClient) {
@@ -53,4 +55,19 @@ export async function requireUser(supabase: SupabaseClient) {
   }
 
   return { user, profile, response: null };
+}
+
+export async function requireAdmin(supabase: SupabaseClient) {
+  const result = await requireUser(supabase);
+  if (!result.user) return result;
+
+  if (!result.profile.is_admin) {
+    return {
+      user: null,
+      profile: null,
+      response: NextResponse.json({ error: "forbidden", message: "Admin access required" }, { status: 403 }),
+    };
+  }
+
+  return result;
 }
