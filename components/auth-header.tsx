@@ -27,6 +27,9 @@ export function AuthHeader({ email }: { email: string | null }) {
   return (
     <div className="flex items-center gap-3 text-sm">
       <span className="text-neutral-500">{email}</span>
+      <Link href="/audit" className="font-medium text-neutral-500 underline-offset-2 hover:underline">
+        Activity log
+      </Link>
       <button
         onClick={handleSignOut}
         className="rounded-lg border border-neutral-300 px-3 py-1.5 font-medium text-neutral-700 hover:bg-neutral-50"

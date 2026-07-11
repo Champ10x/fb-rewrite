@@ -3,12 +3,18 @@ import { createClient } from "@/lib/supabase/server";
 import { generateRewrite } from "@/lib/ai/rewrite";
 import { writeAuditLog } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const MAX_LEN = 2000;
+
+function normalize(text: string) {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const rawText = typeof body?.raw_text === "string" ? body.raw_text.trim() : "";
+  const force = body?.force === true;
 
   if (!rawText) {
     return NextResponse.json({ error: "empty_text", message: "Please paste a post first" }, { status: 400 });
@@ -23,6 +29,28 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { user, response } = await requireUser(supabase);
   if (!user) return response;
+
+  const rateLimited = await checkRateLimit(supabase, "posts", user.id, { limit: 10, windowMinutes: 10 });
+  if (rateLimited) return rateLimited;
+
+  if (!force) {
+    const normalized = normalize(rawText);
+    const { data: existingPosts } = await supabase
+      .from("posts")
+      .select("id, raw_text")
+      .eq("user_id", user.id);
+    const duplicate = existingPosts?.find((p) => normalize(p.raw_text) === normalized);
+    if (duplicate) {
+      return NextResponse.json(
+        {
+          error: "duplicate",
+          message: "You've already rewritten a very similar post.",
+          existingPostId: duplicate.id,
+        },
+        { status: 409 },
+      );
+    }
+  }
 
   const [{ data: post, error: insertError }, { data: brandVoice }] = await Promise.all([
     supabase.from("posts").insert({ raw_text: rawText, status: "draft", user_id: user.id }).select().single(),

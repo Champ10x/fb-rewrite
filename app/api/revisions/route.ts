@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { generateRewrite } from "@/lib/ai/rewrite";
 import { writeAuditLog } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -16,6 +17,9 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { user, response } = await requireUser(supabase);
   if (!user) return response;
+
+  const rateLimited = await checkRateLimit(supabase, "revisions", user.id, { limit: 15, windowMinutes: 10 });
+  if (rateLimited) return rateLimited;
 
   try {
     const { data: brandVoice } = await supabase

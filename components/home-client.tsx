@@ -35,13 +35,14 @@ export function HomeClient({
   const [showRevisions, setShowRevisions] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PostWithRelations | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [duplicateNotice, setDuplicateNotice] = useState<{ message: string; existingPostId: string } | null>(null);
 
   const sortedPosts = useMemo(() => sortPosts(posts), [posts]);
   const activePost = posts.find((p) => p.id === activePostId) ?? null;
   const activeAnalysis = activePost ? latestAnalysis(activePost) : null;
   const canEditActive = !!currentUser && !!activePost && activePost.user_id === currentUser.id;
 
-  async function handleRewrite() {
+  async function handleRewrite(force = false) {
     if (!currentUser) {
       setAuthNotice("Please log in to rewrite posts");
       return;
@@ -58,17 +59,22 @@ export function HomeClient({
     setValidationError(null);
     setAuthNotice(null);
     setRewriteError(null);
+    setDuplicateNotice(null);
     setLoadingRewrite(true);
     try {
       const res = await fetch("/api/rewrite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ raw_text: text }),
+        body: JSON.stringify({ raw_text: text, force }),
       });
       const data = await res.json();
       if (!res.ok) {
         if (res.status === 401) {
           setAuthNotice("Please log in to rewrite posts");
+          return;
+        }
+        if (res.status === 409 && data.existingPostId) {
+          setDuplicateNotice({ message: data.message, existingPostId: data.existingPostId });
           return;
         }
         setRewriteError(data.message ?? "Rewrite failed — please try again.");
@@ -240,7 +246,7 @@ export function HomeClient({
             </span>
           </div>
           <button
-            onClick={handleRewrite}
+            onClick={() => handleRewrite()}
             disabled={loadingRewrite || !rawText.trim() || rawText.length > MAX_LEN}
             className="mt-3 inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -254,6 +260,25 @@ export function HomeClient({
                 log in
               </Link>
             </p>
+          )}
+          {duplicateNotice && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-amber-700">
+              <span>{duplicateNotice.message}</span>
+              <button
+                onClick={() => {
+                  const existing = posts.find((p) => p.id === duplicateNotice.existingPostId);
+                  if (existing) handleView(existing);
+                  setDuplicateNotice(null);
+                }}
+                className="underline underline-offset-2"
+              >
+                View existing
+              </button>
+              <span>·</span>
+              <button onClick={() => handleRewrite(true)} className="underline underline-offset-2">
+                Create anyway
+              </button>
+            </div>
           )}
         </section>
 
@@ -339,35 +364,49 @@ export function HomeClient({
 
             {showRevisions && activePost.revisions.length > 0 && (
               <div className="mt-5 border-t border-neutral-200 pt-4">
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">
-                  Revision History
+                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-400">
+                  Revision History — compare against current
                 </p>
-                <ul className="space-y-2">
+                <div className="space-y-3">
                   {activePost.revisions.map((rev) => (
-                    <li
-                      key={rev.id}
-                      className="flex items-start justify-between gap-3 rounded-lg border border-neutral-200 p-3"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm text-neutral-700">{rev.rewritten_text}</p>
-                        <p className="mt-1 text-xs text-neutral-400">
-                          {new Date(rev.created_at).toLocaleString()}
-                        </p>
+                    <div key={rev.id} className="rounded-lg border border-neutral-200 p-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">Current</span>
+                            <span
+                              className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold ${scoreColorClasses[scoreColor(activeAnalysis?.lead_gen_score)]}`}
+                            >
+                              {activeAnalysis?.lead_gen_score ?? "—"}
+                            </span>
+                          </div>
+                          <p className="text-sm text-neutral-600">{draftFinalText}</p>
+                        </div>
+                        <div className="border-t border-neutral-100 pt-3 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">
+                              {new Date(rev.created_at).toLocaleString()}
+                            </span>
+                            <span
+                              className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold ${scoreColorClasses[scoreColor(rev.lead_gen_score)]}`}
+                            >
+                              {rev.lead_gen_score ?? "—"}
+                            </span>
+                          </div>
+                          <p className="text-sm text-neutral-700">{rev.rewritten_text}</p>
+                          {canEditActive && (
+                            <button
+                              onClick={() => handleUseRevision(rev)}
+                              className="mt-2 text-xs font-medium text-neutral-500 underline-offset-2 hover:underline"
+                            >
+                              Use this
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <span
-                        className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold ${scoreColorClasses[scoreColor(rev.lead_gen_score)]}`}
-                      >
-                        {rev.lead_gen_score ?? "—"}
-                      </span>
-                      <button
-                        onClick={() => handleUseRevision(rev)}
-                        className="shrink-0 text-xs font-medium text-neutral-500 underline-offset-2 hover:underline"
-                      >
-                        Use this
-                      </button>
-                    </li>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
             )}
           </section>

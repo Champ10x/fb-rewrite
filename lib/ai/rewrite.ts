@@ -47,6 +47,8 @@ function brandVoiceGuide(brandVoice: BrandVoice | null | undefined): string {
   return `\n\nWrite in this specific brand voice — treat it as a strict style guide, overriding any generic tone above:\n${lines.map((l) => `- ${l}`).join("\n")}`;
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function generateRewrite(
   rawText: string,
   brandVoice?: BrandVoice | null,
@@ -58,6 +60,16 @@ export async function generateRewrite(
 
   const systemPrompt = BASE_PROMPT + brandVoiceGuide(brandVoice);
 
+  try {
+    return await attemptRewrite(apiKey, systemPrompt, rawText);
+  } catch (err) {
+    console.error("rewrite attempt 1 failed, retrying once", err);
+    await sleep(500);
+    return attemptRewrite(apiKey, systemPrompt, rawText);
+  }
+}
+
+async function attemptRewrite(apiKey: string, systemPrompt: string, rawText: string): Promise<RewriteResult> {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
