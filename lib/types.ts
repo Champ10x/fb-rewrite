@@ -1,0 +1,50 @@
+export type Post = {
+  id: string;
+  user_id: string | null;
+  raw_text: string;
+  final_text: string | null;
+  status: "draft" | "accepted" | "published";
+  created_at: string;
+};
+
+export type Analysis = {
+  id: string;
+  post_id: string;
+  user_id: string | null;
+  hook_score: number | null;
+  hook_score_source: string | null;
+  hook_score_confidence: number | null;
+  hook_score_review_status: string | null;
+  cta_score: number | null;
+  cta_score_source: string | null;
+  cta_score_confidence: number | null;
+  cta_score_review_status: string | null;
+  urgency_score: number | null;
+  urgency_score_source: string | null;
+  urgency_score_confidence: number | null;
+  urgency_score_review_status: string | null;
+  lead_gen_score: number | null;
+  lead_gen_score_source: string | null;
+  lead_gen_score_confidence: number | null;
+  lead_gen_score_review_status: string | null;
+  rewritten_text: string | null;
+  rewritten_text_source: string | null;
+  rewritten_text_confidence: number | null;
+  rewritten_text_review_status: string | null;
+  rationale: string | null;
+  created_at: string;
+};
+
+export type Revision = {
+  id: string;
+  post_id: string;
+  user_id: string | null;
+  rewritten_text: string | null;
+  lead_gen_score: number | null;
+  created_at: string;
+};
+
+export type PostWithRelations = Post & {
+  analyses: Analysis[];
+  revisions: Revision[];
+};

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "vibe-stack-supabase",
-  description: "Next.js + Supabase starter",
+  title: "fb-rewrite",
+  description: "AI-powered Facebook post rewriter for lead generation.",
 };
 
 export default function RootLayout({

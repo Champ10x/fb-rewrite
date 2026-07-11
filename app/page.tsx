@@ -1,21 +1,16 @@
-export default function Home() {
-  return (
-    <main className="min-h-screen flex items-center justify-center p-8">
-      <div className="max-w-xl text-center space-y-4">
-        <h1 className="text-4xl font-bold tracking-tight">vibe-stack-supabase</h1>
-        <p className="text-neutral-500">
-          Edit{" "}
-          <code className="bg-neutral-100 px-1.5 py-0.5 rounded text-sm">
-            app/page.tsx
-          </code>{" "}
-          to start building.
-        </p>
-        <p className="text-xs text-neutral-400">
-          See{" "}
-          <code className="bg-neutral-100 px-1.5 py-0.5 rounded">CLAUDE.md</code>{" "}
-          for project conventions and gstack workflow.
-        </p>
-      </div>
-    </main>
-  );
+import { createClient } from "@/lib/supabase/server";
+import { HomeClient } from "@/components/home-client";
+import type { PostWithRelations } from "@/lib/types";
+
+export default async function Home() {
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("posts")
+    .select("*, analyses(*), revisions(*)")
+    .order("created_at", { ascending: false });
+
+  const initialPosts = (data ?? []) as PostWithRelations[];
+
+  return <HomeClient initialPosts={initialPosts} />;
 }
