@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { Logo } from "@/components/logo";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -35,8 +36,8 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#F7F1E3] px-4">
       <div className="w-full max-w-sm rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-neutral-900">Log in to fb-rewrite</h1>
-        <p className="mt-1 text-sm text-neutral-500">
+        <Logo size="small" />
+        <p className="mt-2 text-sm text-neutral-500">
           We&apos;ll email you a magic link — no password needed.
         </p>
 

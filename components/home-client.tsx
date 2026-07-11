@@ -5,10 +5,11 @@ import Link from "next/link";
 import type { BrandVoice, CurrentUser, PostWithRelations, Revision } from "@/lib/types";
 import { latestAnalysis, sortPosts } from "@/lib/posts";
 import { scoreColor, scoreColorClasses } from "@/lib/scoring";
-import { WEEKLY_POST_QUOTA, getWeekStart } from "@/lib/quota";
+import { getWeekStart } from "@/lib/quota";
 import { displayTokens } from "@/lib/tokens";
 import { AuthHeader } from "@/components/auth-header";
 import { BrandVoiceWizard } from "@/components/brand-voice-wizard";
+import { Logo } from "@/components/logo";
 
 const MAX_LEN = 2000;
 
@@ -16,10 +17,12 @@ export function HomeClient({
   initialPosts,
   currentUser,
   initialBrandVoice,
+  weeklyQuota,
 }: {
   initialPosts: PostWithRelations[];
   currentUser: CurrentUser | null;
   initialBrandVoice: BrandVoice | null;
+  weeklyQuota: number;
 }) {
   const [posts, setPosts] = useState<PostWithRelations[]>(initialPosts);
   const [brandVoice, setBrandVoice] = useState<BrandVoice | null>(initialBrandVoice);
@@ -51,7 +54,7 @@ export function HomeClient({
     const weekStart = getWeekStart();
     return posts.filter((p) => p.user_id === currentUser.id && new Date(p.created_at) >= weekStart).length;
   }, [posts, currentUser]);
-  const quotaExceeded = !!currentUser && quotaUsed >= WEEKLY_POST_QUOTA;
+  const quotaExceeded = !!currentUser && quotaUsed >= weeklyQuota;
 
   async function handleRewrite(force = false) {
     if (!currentUser) {
@@ -208,19 +211,16 @@ export function HomeClient({
     <main className="min-h-screen bg-[#F7F1E3] pb-24">
       <div className="mx-auto max-w-3xl px-4 pt-12 sm:px-6">
         <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <HeaderIllustration />
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-neutral-900">fb-rewrite</h1>
-              <p className="mt-1 text-neutral-500">
-                Paste a raw Facebook post, get a lead-gen-optimised rewrite with scores.
-              </p>
-            </div>
+          <div>
+            <Logo />
+            <p className="mt-1 text-neutral-500">
+              Paste a raw Facebook post, get a lead-gen-optimised rewrite with scores.
+            </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-3">
             {currentUser && (
               <span className="rounded-full border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-600">
-                {quotaUsed}/{WEEKLY_POST_QUOTA} posts this week
+                {quotaUsed}/{weeklyQuota} posts this week
               </span>
             )}
             {currentUser && (
@@ -265,7 +265,7 @@ export function HomeClient({
             <div>
               <p className="text-base font-semibold text-neutral-900">Thanks for using fb-rewrite this week! 🎉</p>
               <p className="mt-1 text-sm text-neutral-500">
-                You've used all {WEEKLY_POST_QUOTA} of your posts. Your quota resets Monday — or send a quick note
+                You've used all {weeklyQuota} of your posts. Your quota resets Monday — or send a quick note
                 below and we'll bump it up.
               </p>
               {quotaRequestStatus === "sent" ? (
@@ -688,27 +688,6 @@ function FollowUpItem({ text }: { text: string }) {
         </button>
       </div>
     </li>
-  );
-}
-
-function HeaderIllustration() {
-  return (
-    <svg width="56" height="56" viewBox="0 0 56 56" fill="none" aria-hidden="true">
-      <circle cx="28" cy="28" r="28" fill="#E8B94A" />
-      <path
-        d="M16 20a4 4 0 0 1 4-4h16a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H24l-6 5v-5.6A4 4 0 0 1 16 30V20z"
-        fill="#FFF7E6"
-      />
-      <path
-        d="M21 27l4-5 3 3 5-6"
-        stroke="#C97B4A"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <path d="M29 18h4v4" stroke="#C97B4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    </svg>
   );
 }
 

@@ -59,6 +59,18 @@ export type CurrentUser = {
   email: string;
 };
 
+export type Profile = {
+  id: string;
+  weekly_credit_allocation: number;
+  expiry_date: string | null;
+  ip_address: string | null;
+  browser: string | null;
+  status: string;
+  referral: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type BrandVoice = {
   id: string;
   user_id: string;

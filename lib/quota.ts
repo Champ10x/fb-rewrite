@@ -1,3 +1,5 @@
+// Fallback default when a user has no profiles row yet. The actual per-user
+// limit lives in profiles.weekly_credit_allocation.
 export const WEEKLY_POST_QUOTA = 3;
 
 /** Start of the current quota week (Monday 00:00 UTC). */

@@ -8,8 +8,16 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      if (data.user) {
+        const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+        const browser = request.headers.get("user-agent") ?? null;
+        await supabase
+          .from("profiles")
+          .update({ ip_address: ip, browser, updated_at: new Date().toISOString() })
+          .eq("id", data.user.id);
+      }
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

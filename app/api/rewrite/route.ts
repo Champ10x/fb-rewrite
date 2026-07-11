@@ -5,7 +5,7 @@ import { generateImage } from "@/lib/ai/image";
 import { writeAuditLog } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { WEEKLY_POST_QUOTA, getWeekStart } from "@/lib/quota";
+import { getWeekStart } from "@/lib/quota";
 
 const MAX_LEN = 2000;
 
@@ -29,20 +29,21 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createClient();
-  const { user, response } = await requireUser(supabase);
+  const { user, profile, response } = await requireUser(supabase);
   if (!user) return response;
 
+  const weeklyQuota = profile.weekly_credit_allocation;
   const { count: quotaUsed } = await supabase
     .from("posts")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
     .gte("created_at", getWeekStart().toISOString());
 
-  if ((quotaUsed ?? 0) >= WEEKLY_POST_QUOTA) {
+  if ((quotaUsed ?? 0) >= weeklyQuota) {
     return NextResponse.json(
       {
         error: "quota_exceeded",
-        message: `Thanks for using fb-rewrite this week! You've used all ${WEEKLY_POST_QUOTA} of your posts — your quota resets Monday.`,
+        message: `Thanks for using fb-rewrite this week! You've used all ${weeklyQuota} of your posts — your quota resets Monday.`,
       },
       { status: 403 },
     );

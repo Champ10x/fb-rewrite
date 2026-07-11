@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { parseBrandVoiceDoc } from "@/lib/ai/brand-voice-import";
+import { optimizeBrandVoice } from "@/lib/ai/optimize-brand-voice";
 
 const MAX_LEN = 20000;
 
@@ -25,10 +26,11 @@ export async function POST(request: Request) {
 
   try {
     const parsed = await parseBrandVoiceDoc(text);
+    const optimized = await optimizeBrandVoice(parsed);
 
     const { data, error } = await supabase
       .from("brand_voices")
-      .upsert({ user_id: user.id, ...parsed, updated_at: new Date().toISOString() }, { onConflict: "user_id" })
+      .upsert({ user_id: user.id, ...optimized, updated_at: new Date().toISOString() }, { onConflict: "user_id" })
       .select()
       .single();
 
