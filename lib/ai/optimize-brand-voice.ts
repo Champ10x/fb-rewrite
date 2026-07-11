@@ -10,12 +10,14 @@ export type BrandVoiceFields = {
   topics: string[];
   persona_note: string | null;
   audience_feelings: string[];
+  target_audience: string | null;
+  color_theme: string | null;
 };
 
-const SYSTEM_PROMPT = `You condense a brand-voice profile to minimize token usage while preserving every distinct piece of meaning. For each list: remove duplicates and near-duplicate synonyms, drop filler words, keep entries short (1-3 words where possible). For persona_note: rewrite as one concise sentence, no filler. Never invent new information, never drop a genuinely distinct idea — only remove redundancy and wordiness. If a field is already empty or minimal, leave it as-is.
+const SYSTEM_PROMPT = `You condense a brand-voice profile to minimize token usage while preserving every distinct piece of meaning. For each list: remove duplicates and near-duplicate synonyms, drop filler words, keep entries short (1-3 words where possible). For persona_note: rewrite as one concise sentence, no filler. For target_audience: keep ALL demographic/situational details (age, location, life stage, role) — only trim wording, never drop a detail, since this steers image generation. For color_theme: keep as a short comma-separated list, no filler. Never invent new information, never drop a genuinely distinct idea — only remove redundancy and wordiness. If a field is already empty or minimal, leave it as-is.
 
 Respond with ONLY a JSON object, no markdown, matching exactly this shape (same fields as the input):
-{"voice_keywords": string[], "words_to_use": string[], "words_to_avoid": string[], "content_style": string[], "caption_length_pref": string|null, "script_length_pref": string|null, "cta_style": string[], "cta_examples": string[], "topics": string[], "persona_note": string|null, "audience_feelings": string[]}`;
+{"voice_keywords": string[], "words_to_use": string[], "words_to_avoid": string[], "content_style": string[], "caption_length_pref": string|null, "script_length_pref": string|null, "cta_style": string[], "cta_examples": string[], "topics": string[], "persona_note": string|null, "audience_feelings": string[], "target_audience": string|null, "color_theme": string|null}`;
 
 function arr(v: unknown, fallback: string[]): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : fallback;
@@ -71,6 +73,8 @@ export async function optimizeBrandVoice(fields: BrandVoiceFields): Promise<Bran
       topics: arr(parsed.topics, fields.topics),
       persona_note: str(parsed.persona_note, fields.persona_note),
       audience_feelings: arr(parsed.audience_feelings, fields.audience_feelings),
+      target_audience: str(parsed.target_audience, fields.target_audience),
+      color_theme: str(parsed.color_theme, fields.color_theme),
     };
   } catch (err) {
     console.error("brand voice optimization failed (non-fatal, saving unoptimized)", err);

@@ -9,7 +9,9 @@ type TextKey =
   | "words_to_avoid"
   | "topics"
   | "cta_examples"
-  | "persona_note";
+  | "persona_note"
+  | "target_audience"
+  | "color_theme";
 type SingleKey = "caption_length_pref" | "script_length_pref";
 
 type Step =
@@ -97,6 +99,20 @@ const STEPS: Step[] = [
     hint: "Pick as many as fit.",
     options: ["Understood", "Excited", "Confident", "Curious", "Reassured", "Inspired", "Informed", "Motivated", "Relieved", "Empowered"],
   },
+  {
+    key: "target_audience",
+    type: "text",
+    question: "Who is your target audience?",
+    hint: "Age, location, life stage, situation — this also steers who appears in generated images. Leave blank to skip.",
+    placeholder: "e.g. Singaporean and Malaysian, age 45-60, sole breadwinner with dependents",
+  },
+  {
+    key: "color_theme",
+    type: "text",
+    question: "What color theme or visual mood fits your brand?",
+    hint: "Used to guide generated images. Leave blank to skip.",
+    placeholder: "e.g. gold and black, mature, not funky",
+  },
 ];
 
 type Answers = Record<string, string[] | string>;
@@ -170,6 +186,8 @@ export function BrandVoiceWizard({
       topics: splitList("topics"),
       persona_note: typeof answers.persona_note === "string" ? answers.persona_note : null,
       audience_feelings: answers.audience_feelings ?? [],
+      target_audience: typeof answers.target_audience === "string" ? answers.target_audience : null,
+      color_theme: typeof answers.color_theme === "string" ? answers.color_theme : null,
     };
 
     try {

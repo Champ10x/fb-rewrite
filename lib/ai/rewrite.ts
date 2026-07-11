@@ -33,7 +33,7 @@ Then score the rewrite you produced:
 
 Also write exactly ${FOLLOW_UP_COUNT} short follow-up Facebook posts to run in the days after the main post — teasers, reminders, or a different angle on the same offer, each driving toward the same call to action. Each follow-up post MUST be ${FOLLOW_UP_MAX_LEN} characters or fewer, punchy, and able to stand alone.
 
-Also write an image_prompt: one or two vivid sentences describing a photo or illustration that would be relevant to this post and add impact if shown alongside it. Describe the scene, subject, mood, and visual style. Do not include any text, words, letters, or logos in the image description.
+Also write an image_prompt: one or two vivid sentences describing a photo or illustration to run alongside this specific post. The image must directly support and reinforce THIS post's message — the scene and subject should visually echo the pain point, offer, or outcome in the rewritten text, not be generic. If any people appear in the image, they must match the brand's target audience (age, life stage, cultural/regional context) described below — do not default to generic stock-photo demographics. Match the described color theme/mood if one is given. Do not include any text, words, letters, or logos in the image description.
 
 Respond with ONLY a JSON object, no markdown, matching exactly this shape:
 {"rewritten_text": string, "hook_score": number, "cta_score": number, "urgency_score": number, "lead_gen_score": number, "confidence": number, "rationale": string, "follow_up_posts": string[], "image_prompt": string}`;
@@ -51,6 +51,8 @@ function brandVoiceGuide(brandVoice: BrandVoice | null | undefined): string {
   if (brandVoice.caption_length_pref) lines.push(`Caption length: ${brandVoice.caption_length_pref}`);
   if (brandVoice.persona_note) lines.push(`Persona: ${brandVoice.persona_note}`);
   if (brandVoice.audience_feelings.length) lines.push(`The audience should feel: ${brandVoice.audience_feelings.join(", ")}`);
+  if (brandVoice.target_audience) lines.push(`Target audience (match this in any people shown in the image): ${brandVoice.target_audience}`);
+  if (brandVoice.color_theme) lines.push(`Color theme / visual mood for the image: ${brandVoice.color_theme}`);
 
   if (!lines.length) return "";
 

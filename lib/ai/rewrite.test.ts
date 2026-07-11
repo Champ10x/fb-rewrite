@@ -76,6 +76,8 @@ describe("generateRewrite — brand voice guide", () => {
       topics: [],
       persona_note: null,
       audience_feelings: [],
+      target_audience: "Singaporean, age 45-60, sole breadwinner",
+      color_theme: "gold and black, mature",
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",
     });
@@ -85,6 +87,8 @@ describe("generateRewrite — brand voice guide", () => {
     expect(systemMessage).toContain("Calm, Wise");
     expect(systemMessage).toContain("protect your family");
     expect(systemMessage).toContain("get rich quick");
+    expect(systemMessage).toContain("Singaporean, age 45-60, sole breadwinner");
+    expect(systemMessage).toContain("gold and black, mature");
   });
 });
 

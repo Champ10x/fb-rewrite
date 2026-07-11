@@ -10,13 +10,18 @@ export type ParsedBrandVoice = {
   topics: string[];
   persona_note: string | null;
   audience_feelings: string[];
+  target_audience: string | null;
+  color_theme: string | null;
 };
 
 const SYSTEM_PROMPT = `You extract a structured brand-voice profile from a free-form document (markdown, notes, or plain text describing someone's writing/content voice).
 
 Map whatever is present in the document onto this exact JSON schema. Use an empty array or null for anything not present — do not invent information that isn't in the document.
 
-{"voice_keywords": string[], "words_to_use": string[], "words_to_avoid": string[], "content_style": string[], "caption_length_pref": string|null, "script_length_pref": string|null, "cta_style": string[], "cta_examples": string[], "topics": string[], "persona_note": string|null, "audience_feelings": string[]}
+{"voice_keywords": string[], "words_to_use": string[], "words_to_avoid": string[], "content_style": string[], "caption_length_pref": string|null, "script_length_pref": string|null, "cta_style": string[], "cta_examples": string[], "topics": string[], "persona_note": string|null, "audience_feelings": string[], "target_audience": string|null, "color_theme": string|null}
+
+target_audience: who the content is for (demographics, life stage, region, situation) — often labeled "TARGET AUDIENCE" in the doc.
+color_theme: the visual palette/mood described for images or branding — often labeled "COLOR THEME" in the doc.
 
 Respond with ONLY that JSON object, no markdown.`;
 
@@ -70,5 +75,7 @@ export async function parseBrandVoiceDoc(docText: string): Promise<ParsedBrandVo
     topics: arr(parsed.topics),
     persona_note: str(parsed.persona_note),
     audience_feelings: arr(parsed.audience_feelings),
+    target_audience: str(parsed.target_audience),
+    color_theme: str(parsed.color_theme),
   };
 }

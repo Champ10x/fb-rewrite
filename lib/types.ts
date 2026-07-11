@@ -87,6 +87,8 @@ export type BrandVoice = {
   topics: string[];
   persona_note: string | null;
   audience_feelings: string[];
+  target_audience: string | null;
+  color_theme: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -58,7 +58,7 @@ export function AdminDashboard({
     <div className="flex min-h-screen flex-col bg-[#F7F1E3] md:flex-row">
       <Sidebar isAdmin />
       <main className="flex-1 pb-24">
-      <div className="mx-auto max-w-5xl px-4 pt-12 sm:px-6">
+      <div className="mx-auto max-w-6xl px-4 pt-12 sm:px-6">
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Admin</h1>
         <p className="mt-1 text-sm text-neutral-500">Users, quota requests, and full activity log.</p>
 
@@ -67,13 +67,17 @@ export function AdminDashboard({
             Users ({profiles.length})
           </h2>
           <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white shadow-sm">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <table className="w-full min-w-[1100px] text-left text-sm">
               <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-400">
                 <tr>
                   <th className="px-4 py-2 font-medium">Email</th>
+                  <th className="px-4 py-2 font-medium">Date joined</th>
                   <th className="px-4 py-2 font-medium">Credits/week</th>
                   <th className="px-4 py-2 font-medium">Status</th>
                   <th className="px-4 py-2 font-medium">Expiry</th>
+                  <th className="px-4 py-2 font-medium">IP address</th>
+                  <th className="px-4 py-2 font-medium">Browser</th>
+                  <th className="px-4 py-2 font-medium">Referral</th>
                   <th className="px-4 py-2 font-medium"></th>
                 </tr>
               </thead>
@@ -87,6 +91,9 @@ export function AdminDashboard({
                           admin
                         </span>
                       )}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-neutral-500">
+                      {profile.created_at ? new Date(profile.created_at).toLocaleDateString() : "—"}
                     </td>
                     <td className="px-4 py-2">
                       <input
@@ -120,6 +127,13 @@ export function AdminDashboard({
                         className="rounded-lg border border-neutral-300 px-2 py-1 text-sm outline-none focus:border-neutral-500"
                       />
                     </td>
+                    <td className="max-w-[140px] truncate px-4 py-2 text-neutral-500" title={profile.ip_address ?? ""}>
+                      {profile.ip_address ?? "—"}
+                    </td>
+                    <td className="max-w-[220px] truncate px-4 py-2 text-neutral-500" title={profile.browser ?? ""}>
+                      {profile.browser ?? "—"}
+                    </td>
+                    <td className="px-4 py-2 text-neutral-500">{profile.referral ?? "—"}</td>
                     <td className="px-4 py-2 text-right">
                       <button
                         onClick={() => handleSave(profile)}
@@ -168,21 +182,25 @@ export function AdminDashboard({
               No activity yet.
             </p>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
-              <table className="w-full text-left text-sm">
+            <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white shadow-sm">
+              <table className="w-full min-w-[1000px] text-left text-sm">
                 <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-400">
                   <tr>
                     <th className="px-4 py-2 font-medium">When</th>
                     <th className="px-4 py-2 font-medium">User</th>
                     <th className="px-4 py-2 font-medium">Action</th>
                     <th className="px-4 py-2 font-medium">Risk</th>
-                    <th className="px-4 py-2 font-medium">Detail</th>
+                    <th className="px-4 py-2 font-medium">Post ID</th>
+                    <th className="px-4 py-2 font-medium">Before</th>
+                    <th className="px-4 py-2 font-medium">After</th>
                   </tr>
                 </thead>
                 <tbody>
                   {auditLogs.map((log) => (
-                    <tr key={log.id} className="border-b border-neutral-100 last:border-0">
-                      <td className="px-4 py-2 text-neutral-500">{new Date(log.created_at).toLocaleString()}</td>
+                    <tr key={log.id} className="border-b border-neutral-100 align-top last:border-0">
+                      <td className="whitespace-nowrap px-4 py-2 text-neutral-500">
+                        {new Date(log.created_at).toLocaleString()}
+                      </td>
                       <td className="px-4 py-2 text-neutral-500">{emailFor(log.user_id)}</td>
                       <td className="px-4 py-2 font-medium text-neutral-900">{log.action}</td>
                       <td className="px-4 py-2">
@@ -192,8 +210,14 @@ export function AdminDashboard({
                           {log.risk_level ?? "—"}
                         </span>
                       </td>
-                      <td className="max-w-xs truncate px-4 py-2 text-neutral-500">
-                        {log.after_value ?? log.before_value ?? "—"}
+                      <td className="max-w-[100px] truncate px-4 py-2 text-neutral-400" title={log.post_id ?? ""}>
+                        {log.post_id ?? "—"}
+                      </td>
+                      <td className="max-w-xs whitespace-pre-wrap break-words px-4 py-2 text-neutral-500">
+                        {log.before_value ?? "—"}
+                      </td>
+                      <td className="max-w-xs whitespace-pre-wrap break-words px-4 py-2 text-neutral-500">
+                        {log.after_value ?? "—"}
                       </td>
                     </tr>
                   ))}

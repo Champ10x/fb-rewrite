@@ -48,6 +48,8 @@ export async function POST(request: Request) {
     topics: toStringArray(body.topics),
     persona_note: typeof body.persona_note === "string" ? body.persona_note : null,
     audience_feelings: toStringArray(body.audience_feelings),
+    target_audience: typeof body.target_audience === "string" ? body.target_audience : null,
+    color_theme: typeof body.color_theme === "string" ? body.color_theme : null,
   });
 
   const payload = {
