@@ -26,7 +26,7 @@ export default async function AuditPage() {
     .limit(200);
 
   return (
-    <main className="min-h-screen bg-neutral-50 pb-24">
+    <main className="min-h-screen bg-[#F7F1E3] pb-24">
       <div className="mx-auto max-w-3xl px-4 pt-12 sm:px-6">
         <div className="mb-6 flex items-center justify-between">
           <div>

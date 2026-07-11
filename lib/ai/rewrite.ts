@@ -8,7 +8,11 @@ export type RewriteResult = {
   lead_gen_score: number;
   confidence: number;
   rationale: string;
+  follow_up_posts: string[];
 };
+
+const FOLLOW_UP_MAX_LEN = 120;
+const FOLLOW_UP_COUNT = 5;
 
 const BASE_PROMPT = `You are an expert Facebook copywriter specializing in lead generation for local service businesses.
 
@@ -25,8 +29,10 @@ Then score the rewrite you produced:
 - confidence (0-1): your confidence in these scores
 - rationale: one sentence explaining the scores
 
+Also write exactly ${FOLLOW_UP_COUNT} short follow-up Facebook posts to run in the days after the main post — teasers, reminders, or a different angle on the same offer, each driving toward the same call to action. Each follow-up post MUST be ${FOLLOW_UP_MAX_LEN} characters or fewer, punchy, and able to stand alone.
+
 Respond with ONLY a JSON object, no markdown, matching exactly this shape:
-{"rewritten_text": string, "hook_score": number, "cta_score": number, "urgency_score": number, "lead_gen_score": number, "confidence": number, "rationale": string}`;
+{"rewritten_text": string, "hook_score": number, "cta_score": number, "urgency_score": number, "lead_gen_score": number, "confidence": number, "rationale": string, "follow_up_posts": string[]}`;
 
 function brandVoiceGuide(brandVoice: BrandVoice | null | undefined): string {
   if (!brandVoice) return "";
@@ -115,6 +121,13 @@ async function attemptRewrite(apiKey: string, systemPrompt: string, rawText: str
     throw new Error("OpenAI response missing required fields");
   }
 
+  const followUps = Array.isArray(parsed.follow_up_posts)
+    ? parsed.follow_up_posts
+        .filter((p): p is string => typeof p === "string" && p.trim().length > 0)
+        .map((p) => (p.length > FOLLOW_UP_MAX_LEN ? p.slice(0, FOLLOW_UP_MAX_LEN) : p))
+        .slice(0, FOLLOW_UP_COUNT)
+    : [];
+
   return {
     rewritten_text: parsed.rewritten_text,
     hook_score: parsed.hook_score,
@@ -123,5 +136,6 @@ async function attemptRewrite(apiKey: string, systemPrompt: string, rawText: str
     lead_gen_score: Math.min(100, parsed.lead_gen_score),
     confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.5,
     rationale: typeof parsed.rationale === "string" ? parsed.rationale : "",
+    follow_up_posts: followUps,
   };
 }

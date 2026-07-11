@@ -87,3 +87,46 @@ describe("generateRewrite — brand voice guide", () => {
     expect(systemMessage).toContain("get rich quick");
   });
 });
+
+describe("generateRewrite — follow-up posts", () => {
+  it("keeps at most 5 follow-up posts and truncates any over 120 characters", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const longPost = "x".repeat(150);
+    const fetchMock = vi.fn().mockResolvedValue(
+      okFetchResponse(
+        mockOpenAiResponse({
+          follow_up_posts: ["a", "b", "c", "d", "e", "f", longPost],
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateRewrite("some raw post");
+
+    expect(result.follow_up_posts).toHaveLength(5);
+    expect(result.follow_up_posts).toEqual(["a", "b", "c", "d", "e"]);
+  });
+
+  it("truncates an individual follow-up post longer than 120 characters", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const longPost = "y".repeat(150);
+    const fetchMock = vi.fn().mockResolvedValue(
+      okFetchResponse(mockOpenAiResponse({ follow_up_posts: [longPost] })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateRewrite("some raw post");
+
+    expect(result.follow_up_posts[0]).toHaveLength(120);
+  });
+
+  it("defaults to an empty array when follow_up_posts is missing", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(okFetchResponse(mockOpenAiResponse({})));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateRewrite("some raw post");
+
+    expect(result.follow_up_posts).toEqual([]);
+  });
+});

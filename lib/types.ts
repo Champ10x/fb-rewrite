@@ -32,6 +32,7 @@ export type Analysis = {
   rewritten_text_confidence: number | null;
   rewritten_text_review_status: string | null;
   rationale: string | null;
+  follow_up_posts: string[];
   created_at: string;
 };
 

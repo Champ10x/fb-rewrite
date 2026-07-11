@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { BrandVoice, CurrentUser, PostWithRelations, Revision } from "@/lib/types";
 import { latestAnalysis, sortPosts } from "@/lib/posts";
 import { scoreColor, scoreColorClasses } from "@/lib/scoring";
+import { WEEKLY_POST_QUOTA, getWeekStart } from "@/lib/quota";
 import { AuthHeader } from "@/components/auth-header";
 import { BrandVoiceWizard } from "@/components/brand-voice-wizard";
 
@@ -36,11 +37,20 @@ export function HomeClient({
   const [deleteTarget, setDeleteTarget] = useState<PostWithRelations | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [duplicateNotice, setDuplicateNotice] = useState<{ message: string; existingPostId: string } | null>(null);
+  const [quotaRequestMessage, setQuotaRequestMessage] = useState("");
+  const [quotaRequestStatus, setQuotaRequestStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   const sortedPosts = useMemo(() => sortPosts(posts), [posts]);
   const activePost = posts.find((p) => p.id === activePostId) ?? null;
   const activeAnalysis = activePost ? latestAnalysis(activePost) : null;
   const canEditActive = !!currentUser && !!activePost && activePost.user_id === currentUser.id;
+
+  const quotaUsed = useMemo(() => {
+    if (!currentUser) return 0;
+    const weekStart = getWeekStart();
+    return posts.filter((p) => p.user_id === currentUser.id && new Date(p.created_at) >= weekStart).length;
+  }, [posts, currentUser]);
+  const quotaExceeded = !!currentUser && quotaUsed >= WEEKLY_POST_QUOTA;
 
   async function handleRewrite(force = false) {
     if (!currentUser) {
@@ -179,21 +189,43 @@ export function HomeClient({
     }
   }
 
+  async function handleSendQuotaRequest() {
+    setQuotaRequestStatus("sending");
+    try {
+      const res = await fetch("/api/quota-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: quotaRequestMessage }),
+      });
+      setQuotaRequestStatus(res.ok ? "sent" : "error");
+    } catch {
+      setQuotaRequestStatus("error");
+    }
+  }
+
   return (
-    <main className="min-h-screen bg-neutral-50 pb-24">
+    <main className="min-h-screen bg-[#F7F1E3] pb-24">
       <div className="mx-auto max-w-3xl px-4 pt-12 sm:px-6">
-        <header className="mb-8 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-neutral-900">fb-rewrite</h1>
-            <p className="mt-1 text-neutral-500">
-              Paste a raw Facebook post, get a lead-gen-optimised rewrite with scores.
-            </p>
+        <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <HeaderIllustration />
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight text-neutral-900">fb-rewrite</h1>
+              <p className="mt-1 text-neutral-500">
+                Paste a raw Facebook post, get a lead-gen-optimised rewrite with scores.
+              </p>
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex shrink-0 flex-wrap items-center gap-3">
+            {currentUser && (
+              <span className="rounded-full border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-600">
+                {quotaUsed}/{WEEKLY_POST_QUOTA} posts this week
+              </span>
+            )}
             {currentUser && (
               <button
                 onClick={() => setShowWizard(true)}
-                className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
               >
                 {brandVoice ? "Edit brand voice" : "Set up brand voice"}
               </button>
@@ -228,57 +260,94 @@ export function HomeClient({
         )}
 
         <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <label htmlFor="raw-text" className="mb-2 block text-sm font-medium text-neutral-700">
-            Raw post
-          </label>
-          <textarea
-            id="raw-text"
-            rows={5}
-            value={rawText}
-            onChange={(e) => setRawText(e.target.value)}
-            placeholder="e.g. we fix pipes call us anytime good prices dublin"
-            className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
-          />
-          <div className="mt-1 flex items-center justify-between text-xs text-neutral-400">
-            <span>{validationError ? <span className="text-red-600">{validationError}</span> : " "}</span>
-            <span>
-              {rawText.length}/{MAX_LEN}
-            </span>
-          </div>
-          <button
-            onClick={() => handleRewrite()}
-            disabled={loadingRewrite || !rawText.trim() || rawText.length > MAX_LEN}
-            className="mt-3 inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {loadingRewrite && <Spinner />}
-            {loadingRewrite ? "Rewriting…" : "Rewrite"}
-          </button>
-          {authNotice && (
-            <p className="mt-2 text-sm text-amber-700">
-              {authNotice} —{" "}
-              <Link href="/login" className="underline underline-offset-2">
-                log in
-              </Link>
-            </p>
-          )}
-          {duplicateNotice && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-amber-700">
-              <span>{duplicateNotice.message}</span>
-              <button
-                onClick={() => {
-                  const existing = posts.find((p) => p.id === duplicateNotice.existingPostId);
-                  if (existing) handleView(existing);
-                  setDuplicateNotice(null);
-                }}
-                className="underline underline-offset-2"
-              >
-                View existing
-              </button>
-              <span>·</span>
-              <button onClick={() => handleRewrite(true)} className="underline underline-offset-2">
-                Create anyway
-              </button>
+          {quotaExceeded ? (
+            <div>
+              <p className="text-base font-semibold text-neutral-900">Thanks for using fb-rewrite this week! 🎉</p>
+              <p className="mt-1 text-sm text-neutral-500">
+                You've used all {WEEKLY_POST_QUOTA} of your posts. Your quota resets Monday — or send a quick note
+                below and we'll bump it up.
+              </p>
+              {quotaRequestStatus === "sent" ? (
+                <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                  Thanks — we got your message and will get back to you.
+                </p>
+              ) : (
+                <>
+                  <textarea
+                    rows={3}
+                    value={quotaRequestMessage}
+                    onChange={(e) => setQuotaRequestMessage(e.target.value)}
+                    placeholder="Tell us why you'd like a higher quota…"
+                    className="mt-3 w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                  />
+                  <button
+                    onClick={handleSendQuotaRequest}
+                    disabled={quotaRequestStatus === "sending"}
+                    className="mt-3 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {quotaRequestStatus === "sending" ? "Sending…" : "Request more posts"}
+                  </button>
+                  {quotaRequestStatus === "error" && (
+                    <p className="mt-2 text-sm text-red-600">Could not send your request — please try again.</p>
+                  )}
+                </>
+              )}
             </div>
+          ) : (
+            <>
+              <label htmlFor="raw-text" className="mb-2 block text-sm font-medium text-neutral-700">
+                Raw post
+              </label>
+              <textarea
+                id="raw-text"
+                rows={5}
+                value={rawText}
+                onChange={(e) => setRawText(e.target.value)}
+                placeholder="e.g. your health is your wealth.... take care of yourself today"
+                className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+              />
+              <div className="mt-1 flex items-center justify-between text-xs text-neutral-400">
+                <span>{validationError ? <span className="text-red-600">{validationError}</span> : " "}</span>
+                <span>
+                  {rawText.length}/{MAX_LEN}
+                </span>
+              </div>
+              <button
+                onClick={() => handleRewrite()}
+                disabled={loadingRewrite || !rawText.trim() || rawText.length > MAX_LEN}
+                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {loadingRewrite && <Spinner />}
+                {loadingRewrite ? "Rewriting…" : "Rewrite"}
+              </button>
+              {authNotice && (
+                <p className="mt-2 text-sm text-amber-700">
+                  {authNotice} —{" "}
+                  <Link href="/login" className="underline underline-offset-2">
+                    log in
+                  </Link>
+                </p>
+              )}
+              {duplicateNotice && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-amber-700">
+                  <span>{duplicateNotice.message}</span>
+                  <button
+                    onClick={() => {
+                      const existing = posts.find((p) => p.id === duplicateNotice.existingPostId);
+                      if (existing) handleView(existing);
+                      setDuplicateNotice(null);
+                    }}
+                    className="underline underline-offset-2"
+                  >
+                    View existing
+                  </button>
+                  <span>·</span>
+                  <button onClick={() => handleRewrite(true)} className="underline underline-offset-2">
+                    Create anyway
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </section>
 
@@ -362,6 +431,19 @@ export function HomeClient({
               <LeadGenBadge value={activeAnalysis?.lead_gen_score} />
             </div>
 
+            {!!activeAnalysis?.follow_up_posts?.length && (
+              <div className="mt-5 border-t border-neutral-200 pt-4">
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">
+                  5 follow-up posts
+                </p>
+                <ul className="space-y-2">
+                  {activeAnalysis.follow_up_posts.map((fp, i) => (
+                    <FollowUpItem key={i} text={fp} />
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {showRevisions && activePost.revisions.length > 0 && (
               <div className="mt-5 border-t border-neutral-200 pt-4">
                 <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-400">
@@ -417,9 +499,10 @@ export function HomeClient({
             Post History
           </h2>
           {sortedPosts.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-400">
-              No posts yet. Paste your first post above.
-            </p>
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-neutral-300 p-6 text-center">
+              <EmptyStateIllustration />
+              <p className="text-sm text-neutral-400">No posts yet. Paste your first post above.</p>
+            </div>
           ) : (
             <ul className="space-y-3">
               {sortedPosts.map((post) => {
@@ -555,6 +638,65 @@ function Spinner({ dark }: { dark?: boolean }) {
         fill="currentColor"
         d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
       />
+    </svg>
+  );
+}
+
+function FollowUpItem({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard unavailable — silently ignore, copy is a convenience only
+    }
+  }
+
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 p-2.5">
+      <p className="text-sm text-neutral-700">{text}</p>
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="text-xs text-neutral-400">{text.length}/120</span>
+        <button
+          onClick={handleCopy}
+          className="text-xs font-medium text-neutral-500 underline-offset-2 hover:underline"
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+    </li>
+  );
+}
+
+function HeaderIllustration() {
+  return (
+    <svg width="56" height="56" viewBox="0 0 56 56" fill="none" aria-hidden="true">
+      <circle cx="28" cy="28" r="28" fill="#E8B94A" />
+      <path
+        d="M16 20a4 4 0 0 1 4-4h16a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H24l-6 5v-5.6A4 4 0 0 1 16 30V20z"
+        fill="#FFF7E6"
+      />
+      <path
+        d="M21 27l4-5 3 3 5-6"
+        stroke="#C97B4A"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <path d="M29 18h4v4" stroke="#C97B4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
+
+function EmptyStateIllustration() {
+  return (
+    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+      <circle cx="20" cy="20" r="20" fill="#F3E7D3" />
+      <path d="M14 26l10-10 4 4-10 10h-4v-4z" fill="#C97B4A" />
     </svg>
   );
 }

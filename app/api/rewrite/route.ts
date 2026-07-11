@@ -4,6 +4,7 @@ import { generateRewrite } from "@/lib/ai/rewrite";
 import { writeAuditLog } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { WEEKLY_POST_QUOTA, getWeekStart } from "@/lib/quota";
 
 const MAX_LEN = 2000;
 
@@ -29,6 +30,22 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { user, response } = await requireUser(supabase);
   if (!user) return response;
+
+  const { count: quotaUsed } = await supabase
+    .from("posts")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .gte("created_at", getWeekStart().toISOString());
+
+  if ((quotaUsed ?? 0) >= WEEKLY_POST_QUOTA) {
+    return NextResponse.json(
+      {
+        error: "quota_exceeded",
+        message: `Thanks for using fb-rewrite this week! You've used all ${WEEKLY_POST_QUOTA} of your posts — your quota resets Monday.`,
+      },
+      { status: 403 },
+    );
+  }
 
   const rateLimited = await checkRateLimit(supabase, "posts", user.id, { limit: 10, windowMinutes: 10 });
   if (rateLimited) return rateLimited;
@@ -90,6 +107,7 @@ export async function POST(request: Request) {
         rewritten_text_confidence: result.confidence,
         rewritten_text_review_status: "unreviewed",
         rationale: result.rationale,
+        follow_up_posts: result.follow_up_posts,
       })
       .select()
       .single();

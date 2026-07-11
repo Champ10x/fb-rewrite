@@ -28,6 +28,7 @@ function makeAnalysis(overrides: Partial<Analysis>): Analysis {
     rewritten_text_confidence: null,
     rewritten_text_review_status: null,
     rationale: null,
+    follow_up_posts: [],
     created_at: "2026-01-01T00:00:00Z",
     ...overrides,
   };
