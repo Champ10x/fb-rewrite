@@ -9,6 +9,8 @@ export type RewriteResult = {
   confidence: number;
   rationale: string;
   follow_up_posts: string[];
+  image_prompt: string;
+  tokens_used: number | null;
 };
 
 const FOLLOW_UP_MAX_LEN = 120;
@@ -31,8 +33,10 @@ Then score the rewrite you produced:
 
 Also write exactly ${FOLLOW_UP_COUNT} short follow-up Facebook posts to run in the days after the main post — teasers, reminders, or a different angle on the same offer, each driving toward the same call to action. Each follow-up post MUST be ${FOLLOW_UP_MAX_LEN} characters or fewer, punchy, and able to stand alone.
 
+Also write an image_prompt: one or two vivid sentences describing a photo or illustration that would be relevant to this post and add impact if shown alongside it. Describe the scene, subject, mood, and visual style. Do not include any text, words, letters, or logos in the image description.
+
 Respond with ONLY a JSON object, no markdown, matching exactly this shape:
-{"rewritten_text": string, "hook_score": number, "cta_score": number, "urgency_score": number, "lead_gen_score": number, "confidence": number, "rationale": string, "follow_up_posts": string[]}`;
+{"rewritten_text": string, "hook_score": number, "cta_score": number, "urgency_score": number, "lead_gen_score": number, "confidence": number, "rationale": string, "follow_up_posts": string[], "image_prompt": string}`;
 
 function brandVoiceGuide(brandVoice: BrandVoice | null | undefined): string {
   if (!brandVoice) return "";
@@ -128,6 +132,8 @@ async function attemptRewrite(apiKey: string, systemPrompt: string, rawText: str
         .slice(0, FOLLOW_UP_COUNT)
     : [];
 
+  const tokensUsed = typeof data?.usage?.total_tokens === "number" ? data.usage.total_tokens : null;
+
   return {
     rewritten_text: parsed.rewritten_text,
     hook_score: parsed.hook_score,
@@ -137,5 +143,7 @@ async function attemptRewrite(apiKey: string, systemPrompt: string, rawText: str
     confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.5,
     rationale: typeof parsed.rationale === "string" ? parsed.rationale : "",
     follow_up_posts: followUps,
+    image_prompt: typeof parsed.image_prompt === "string" ? parsed.image_prompt : "",
+    tokens_used: tokensUsed,
   };
 }

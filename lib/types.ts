@@ -33,6 +33,10 @@ export type Analysis = {
   rewritten_text_review_status: string | null;
   rationale: string | null;
   follow_up_posts: string[];
+  image_url: string | null;
+  image_prompt: string | null;
+  rewrite_tokens_used: number | null;
+  image_tokens_used: number | null;
   created_at: string;
 };
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateRewrite } from "@/lib/ai/rewrite";
+import { generateImage } from "@/lib/ai/image";
 import { writeAuditLog } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -81,6 +82,24 @@ export async function POST(request: Request) {
   try {
     const result = await generateRewrite(rawText, brandVoice);
 
+    let imageUrl: string | null = null;
+    let imageTokensUsed: number | null = null;
+    if (result.image_prompt) {
+      try {
+        const image = await generateImage(result.image_prompt);
+        const path = `${user.id}/${post.id}.png`;
+        const { error: uploadError } = await supabase.storage
+          .from("post-images")
+          .upload(path, Buffer.from(image.base64, "base64"), { contentType: "image/png", upsert: true });
+        if (!uploadError) {
+          imageUrl = supabase.storage.from("post-images").getPublicUrl(path).data.publicUrl;
+          imageTokensUsed = image.tokensUsed;
+        }
+      } catch (imgErr) {
+        console.error("image generation failed (non-fatal)", imgErr);
+      }
+    }
+
     const { data: analysis, error: analysisError } = await supabase
       .from("analyses")
       .insert({
@@ -108,6 +127,10 @@ export async function POST(request: Request) {
         rewritten_text_review_status: "unreviewed",
         rationale: result.rationale,
         follow_up_posts: result.follow_up_posts,
+        image_url: imageUrl,
+        image_prompt: result.image_prompt || null,
+        rewrite_tokens_used: result.tokens_used,
+        image_tokens_used: imageTokensUsed,
       })
       .select()
       .single();

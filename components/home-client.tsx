@@ -393,6 +393,25 @@ export function HomeClient({
               className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500 disabled:bg-neutral-50 disabled:text-neutral-400"
             />
 
+            {activeAnalysis?.image_url && (
+              <div className="mt-3">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-400">Suggested image</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={activeAnalysis.image_url}
+                  alt="AI-generated image relevant to this post"
+                  className="w-full rounded-lg border border-neutral-200"
+                />
+              </div>
+            )}
+
+            {(activeAnalysis?.rewrite_tokens_used != null || activeAnalysis?.image_tokens_used != null) && (
+              <p className="mt-2 text-xs text-neutral-400">
+                Tokens used — text: {activeAnalysis?.rewrite_tokens_used ?? "—"} · image:{" "}
+                {activeAnalysis?.image_tokens_used ?? "—"}
+              </p>
+            )}
+
             {canEditActive && (
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <button

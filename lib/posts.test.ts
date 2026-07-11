@@ -29,6 +29,10 @@ function makeAnalysis(overrides: Partial<Analysis>): Analysis {
     rewritten_text_review_status: null,
     rationale: null,
     follow_up_posts: [],
+    image_url: null,
+    image_prompt: null,
+    rewrite_tokens_used: null,
+    image_tokens_used: null,
     created_at: "2026-01-01T00:00:00Z",
     ...overrides,
   };
