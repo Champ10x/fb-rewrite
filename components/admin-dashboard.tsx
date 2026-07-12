@@ -25,11 +25,13 @@ export function AdminDashboard({
   const [profiles, setProfiles] = useState<Profile[]>(initialProfiles);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set());
 
   const emailFor = (userId: string | null) => profiles.find((p) => p.id === userId)?.email ?? userId ?? "—";
 
   function updateLocal(id: string, patch: Partial<Profile>) {
     setProfiles((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    setDirtyIds((prev) => new Set(prev).add(id));
   }
 
   async function handleSave(profile: Profile) {
@@ -47,6 +49,11 @@ export function AdminDashboard({
       });
       if (res.ok) {
         setSavedId(profile.id);
+        setDirtyIds((prev) => {
+          const next = new Set(prev);
+          next.delete(profile.id);
+          return next;
+        });
         setTimeout(() => setSavedId(null), 1500);
       }
     } finally {
@@ -78,7 +85,7 @@ export function AdminDashboard({
                   <th className="px-4 py-2 font-medium">IP address</th>
                   <th className="px-4 py-2 font-medium">Browser</th>
                   <th className="px-4 py-2 font-medium">Referral</th>
-                  <th className="px-4 py-2 font-medium"></th>
+                  <th className="sticky right-0 border-l border-neutral-200 bg-neutral-50 px-4 py-2 font-medium"></th>
                 </tr>
               </thead>
               <tbody>
@@ -134,13 +141,23 @@ export function AdminDashboard({
                       {profile.browser ?? "—"}
                     </td>
                     <td className="px-4 py-2 text-neutral-500">{profile.referral ?? "—"}</td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="sticky right-0 border-l border-neutral-200 bg-white px-4 py-2 text-right">
                       <button
                         onClick={() => handleSave(profile)}
                         disabled={savingId === profile.id}
-                        className="rounded-lg bg-neutral-900 px-3 py-1 text-xs font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+                        className={`rounded-lg px-3 py-1 text-xs font-medium text-white disabled:opacity-50 ${
+                          dirtyIds.has(profile.id)
+                            ? "bg-amber-600 hover:bg-amber-700"
+                            : "bg-neutral-900 hover:bg-neutral-700"
+                        }`}
                       >
-                        {savingId === profile.id ? "Saving…" : savedId === profile.id ? "Saved" : "Save"}
+                        {savingId === profile.id
+                          ? "Saving…"
+                          : savedId === profile.id
+                            ? "Saved"
+                            : dirtyIds.has(profile.id)
+                              ? "Save changes"
+                              : "Save"}
                       </button>
                     </td>
                   </tr>
