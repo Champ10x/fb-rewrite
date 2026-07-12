@@ -9,6 +9,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const postId = typeof body?.post_id === "string" ? body.post_id : "";
   const rawText = typeof body?.raw_text === "string" ? body.raw_text.trim() : "";
+  const instructions = typeof body?.instructions === "string" ? body.instructions.trim().slice(0, 300) : null;
 
   if (!postId || !rawText) {
     return NextResponse.json({ error: "bad_request", message: "post_id and raw_text are required" }, { status: 400 });
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
       .select("*")
       .eq("user_id", user.id)
       .maybeSingle();
-    const result = await generateRewrite(rawText, brandVoice);
+    const result = await generateRewrite(rawText, brandVoice, instructions);
 
     const { data: revision, error } = await supabase
       .from("revisions")

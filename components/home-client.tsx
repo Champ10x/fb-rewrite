@@ -39,6 +39,7 @@ export function HomeClient({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [revisionLoading, setRevisionLoading] = useState(false);
+  const [revisionInstructions, setRevisionInstructions] = useState("");
   const [showRevisions, setShowRevisions] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PostWithRelations | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -147,7 +148,11 @@ export function HomeClient({
       const res = await fetch("/api/revisions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ post_id: activePost.id, raw_text: activePost.raw_text }),
+        body: JSON.stringify({
+          post_id: activePost.id,
+          raw_text: activePost.raw_text,
+          instructions: revisionInstructions.trim() || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -159,6 +164,7 @@ export function HomeClient({
           p.id === activePost.id ? { ...p, revisions: [data.revision, ...p.revisions] } : p,
         ),
       );
+      setRevisionInstructions("");
       setShowRevisions(true);
     } catch {
       setRewriteError("Rewrite failed — please try again.");
@@ -390,11 +396,11 @@ export function HomeClient({
             </label>
             <textarea
               id="final-text"
-              rows={4}
+              rows={8}
               value={draftFinalText}
               onChange={(e) => setDraftFinalText(e.target.value)}
               disabled={!canEditActive}
-              className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500 disabled:bg-neutral-50 disabled:text-neutral-400"
+              className="w-full resize-y rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500 disabled:bg-neutral-50 disabled:text-neutral-400"
             />
 
             {activeAnalysis?.image_url && (
@@ -414,6 +420,23 @@ export function HomeClient({
                 Tokens used — text: {displayTokens(activeAnalysis?.rewrite_tokens_used) ?? "—"} · image:{" "}
                 {displayTokens(activeAnalysis?.image_tokens_used) ?? "—"}
               </p>
+            )}
+
+            {canEditActive && (
+              <div className="mt-3">
+                <label htmlFor="revision-instructions" className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-400">
+                  Instructions for next rewrite (optional)
+                </label>
+                <input
+                  id="revision-instructions"
+                  type="text"
+                  maxLength={300}
+                  value={revisionInstructions}
+                  onChange={(e) => setRevisionInstructions(e.target.value)}
+                  placeholder="e.g. make it shorter, more urgent, mention weekends"
+                  className="w-full rounded-lg border border-neutral-300 p-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                />
+              </div>
             )}
 
             {canEditActive && (
