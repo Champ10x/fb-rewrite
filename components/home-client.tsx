@@ -513,7 +513,7 @@ export function HomeClient({
                               {activeAnalysis?.lead_gen_score ?? "—"}
                             </span>
                           </div>
-                          <p className="text-sm text-neutral-600">{draftFinalText}</p>
+                          <p className="whitespace-pre-wrap text-sm text-neutral-600">{draftFinalText}</p>
                           <p className="mt-1 text-xs text-neutral-400">
                             {getWordCount(draftFinalText)} words · {getCharCount(draftFinalText)} characters
                           </p>
@@ -529,7 +529,7 @@ export function HomeClient({
                               {rev.lead_gen_score ?? "—"}
                             </span>
                           </div>
-                          <p className="text-sm text-neutral-700">{rev.rewritten_text}</p>
+                          <p className="whitespace-pre-wrap text-sm text-neutral-700">{rev.rewritten_text}</p>
                           <p className="mt-1 text-xs text-neutral-400">
                             {getWordCount(rev.rewritten_text)} words · {getCharCount(rev.rewritten_text)} characters
                             {rev.tokens_used != null && <> · Tokens used: {displayTokens(rev.tokens_used)}</>}
