@@ -46,6 +46,7 @@ export type Revision = {
   user_id: string | null;
   rewritten_text: string | null;
   lead_gen_score: number | null;
+  tokens_used: number | null;
   created_at: string;
 };
 

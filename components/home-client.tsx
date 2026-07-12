@@ -7,6 +7,7 @@ import { latestAnalysis, sortPosts } from "@/lib/posts";
 import { scoreColor, scoreColorClasses } from "@/lib/scoring";
 import { getWeekStart } from "@/lib/quota";
 import { displayTokens } from "@/lib/tokens";
+import { getCharCount, getWordCount } from "@/lib/text-stats";
 import { AuthHeader } from "@/components/auth-header";
 import { BrandVoiceWizard } from "@/components/brand-voice-wizard";
 import { Sidebar } from "@/components/sidebar";
@@ -415,12 +416,16 @@ export function HomeClient({
               </div>
             )}
 
-            {(activeAnalysis?.rewrite_tokens_used != null || activeAnalysis?.image_tokens_used != null) && (
-              <p className="mt-2 text-xs text-neutral-400">
-                Tokens used — text: {displayTokens(activeAnalysis?.rewrite_tokens_used) ?? "—"} · image:{" "}
-                {displayTokens(activeAnalysis?.image_tokens_used) ?? "—"}
-              </p>
-            )}
+            <p className="mt-2 text-xs text-neutral-400">
+              {getWordCount(draftFinalText)} words · {getCharCount(draftFinalText)} characters
+              {(activeAnalysis?.rewrite_tokens_used != null || activeAnalysis?.image_tokens_used != null) && (
+                <>
+                  {" "}
+                  · Tokens used — text: {displayTokens(activeAnalysis?.rewrite_tokens_used) ?? "—"} · image:{" "}
+                  {displayTokens(activeAnalysis?.image_tokens_used) ?? "—"}
+                </>
+              )}
+            </p>
 
             {canEditActive && (
               <div className="mt-3">
@@ -509,6 +514,9 @@ export function HomeClient({
                             </span>
                           </div>
                           <p className="text-sm text-neutral-600">{draftFinalText}</p>
+                          <p className="mt-1 text-xs text-neutral-400">
+                            {getWordCount(draftFinalText)} words · {getCharCount(draftFinalText)} characters
+                          </p>
                         </div>
                         <div className="border-t border-neutral-100 pt-3 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
                           <div className="mb-1 flex items-center justify-between gap-2">
@@ -522,6 +530,10 @@ export function HomeClient({
                             </span>
                           </div>
                           <p className="text-sm text-neutral-700">{rev.rewritten_text}</p>
+                          <p className="mt-1 text-xs text-neutral-400">
+                            {getWordCount(rev.rewritten_text)} words · {getCharCount(rev.rewritten_text)} characters
+                            {rev.tokens_used != null && <> · Tokens used: {displayTokens(rev.tokens_used)}</>}
+                          </p>
                           {canEditActive && (
                             <button
                               onClick={() => handleUseRevision(rev)}

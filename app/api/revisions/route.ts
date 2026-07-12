@@ -37,6 +37,7 @@ export async function POST(request: Request) {
         user_id: user.id,
         rewritten_text: result.rewritten_text,
         lead_gen_score: result.lead_gen_score,
+        tokens_used: result.tokens_used,
       })
       .select()
       .single();
