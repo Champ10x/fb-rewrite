@@ -1,81 +1,75 @@
 import fs from "fs";
 import path from "path";
+import type { ReactNode } from "react";
 import sharp from "sharp";
+import satori from "satori";
 
-// Serverless runtimes (Vercel/Lambda) ship no system fonts, so an SVG
-// <text> with only a font-family name rasterizes as empty glyph boxes.
-// Embedding the font's bytes directly in the SVG via @font-face sidesteps
-// that regardless of what fonts (if any) are installed on the host.
+// Serverless runtimes (Vercel/Lambda) ship no system fonts, and even an
+// embedded @font-face in a hand-built SVG isn't reliably honored by the
+// librsvg build sharp/libvips uses there — it silently falls back to
+// missing-glyph boxes. Satori sidesteps this entirely: it converts each
+// glyph into an SVG <path> (vector outline) up front, so the SVG handed to
+// sharp has no runtime font dependency at all.
 const FONT_PATH = path.join(process.cwd(), "lib/ai/fonts/inter-extrabold-latin.woff");
-const FONT_FAMILY = "OverlayFont";
-let fontBase64Cache: string | null = null;
+let fontDataCache: Buffer | null = null;
 
-function getFontBase64(): string {
-  if (fontBase64Cache === null) {
-    fontBase64Cache = fs.readFileSync(FONT_PATH).toString("base64");
+function getFontData(): Buffer {
+  if (fontDataCache === null) {
+    fontDataCache = fs.readFileSync(FONT_PATH);
   }
-  return fontBase64Cache;
+  return fontDataCache;
 }
 
-function escapeXml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+function fontSizeFor(text: string): number {
+  if (text.length > 90) return 40;
+  if (text.length > 60) return 48;
+  if (text.length > 40) return 54;
+  return 60;
 }
 
-function wrapLines(text: string, maxCharsPerLine: number, maxLines: number): string[] {
-  const words = text.trim().split(/\s+/);
-  const lines: string[] = [];
-  let current = "";
+async function buildOverlaySvg(text: string, width: number, height: number): Promise<string> {
+  const fontSize = fontSizeFor(text);
 
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (next.length > maxCharsPerLine && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = next;
-    }
-    if (lines.length >= maxLines) break;
-  }
-  if (current && lines.length < maxLines) lines.push(current);
+  const tree = {
+    type: "div",
+    props: {
+      style: {
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "flex-end",
+        alignItems: "center",
+      },
+      children: {
+        type: "div",
+        props: {
+          style: {
+            display: "flex",
+            width: "88%",
+            marginBottom: 48,
+            padding: "28px 36px",
+            borderRadius: 18,
+            backgroundColor: "rgba(0,0,0,0.55)",
+            color: "#ffffff",
+            fontSize,
+            fontWeight: 800,
+            fontFamily: "Inter",
+            textAlign: "center",
+            lineHeight: 1.3,
+            justifyContent: "center",
+          },
+          children: text,
+        },
+      },
+    },
+  };
 
-  return lines;
-}
-
-function buildOverlaySvg(text: string, width: number, height: number): string {
-  let fontSize = 58;
-  if (text.length > 90) fontSize = 38;
-  else if (text.length > 60) fontSize = 46;
-  else if (text.length > 40) fontSize = 52;
-
-  const maxCharsPerLine = Math.max(10, Math.floor((width * 0.82) / (fontSize * 0.56)));
-  const lines = wrapLines(text, maxCharsPerLine, 6);
-  const lineHeight = fontSize * 1.25;
-  const padding = 40;
-  const blockHeight = lines.length * lineHeight + padding * 2;
-  const blockWidth = width * 0.9;
-  const blockX = (width - blockWidth) / 2;
-  const blockY = height - blockHeight - 48;
-
-  const textLines = lines
-    .map((line, i) => {
-      const y = blockY + padding + fontSize * 0.85 + i * lineHeight;
-      return `<text x="${width / 2}" y="${y}" font-family="${FONT_FAMILY}" font-weight="800" font-size="${fontSize}" fill="#ffffff" text-anchor="middle" stroke="#000000" stroke-width="${(fontSize * 0.05).toFixed(1)}" paint-order="stroke" stroke-linejoin="round">${escapeXml(line)}</text>`;
-    })
-    .join("");
-
-  return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <style>
-        @font-face {
-          font-family: '${FONT_FAMILY}';
-          font-weight: 800;
-          src: url(data:font/woff;base64,${getFontBase64()}) format('woff');
-        }
-      </style>
-    </defs>
-    <rect x="${blockX}" y="${blockY}" width="${blockWidth}" height="${blockHeight}" rx="18" fill="#000000" fill-opacity="0.55" />
-    ${textLines}
-  </svg>`;
+  return satori(tree as unknown as ReactNode, {
+    width,
+    height,
+    fonts: [{ name: "Inter", data: getFontData(), weight: 800, style: "normal" }],
+  });
 }
 
 export async function overlayTextOnImage(base64: string, text: string): Promise<Buffer> {
@@ -83,7 +77,7 @@ export async function overlayTextOnImage(base64: string, text: string): Promise<
   const metadata = await sharp(imageBuffer).metadata();
   const width = metadata.width ?? 1024;
   const height = metadata.height ?? 1024;
-  const svg = buildOverlaySvg(text, width, height);
+  const svg = await buildOverlaySvg(text, width, height);
 
   return sharp(imageBuffer)
     .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])

@@ -46,7 +46,7 @@ Then score the rewrite you produced:
 - confidence (0-1): your confidence in these scores
 - rationale: one sentence explaining the scores
 
-Also write exactly ${FOLLOW_UP_COUNT} short follow-up posts to run in the days after the main post — teasers, reminders, or a different angle on the same offer, each driving toward the same call to action. Each follow-up post MUST be between ${FOLLOW_UP_MIN_LEN} and ${FOLLOW_UP_MAX_LEN} characters, punchy, and able to stand alone.
+Also write exactly ${FOLLOW_UP_COUNT} short follow-up posts to run in the days after the main post — teasers, reminders, or a different angle on the same offer. These are NOT mini-ads: do not include a call-to-action or contact method (no "DM us", "call now", "book today", links, etc.) — just a short, punchy, standalone thought that builds curiosity or reinforces the message. Each follow-up post is a strict requirement: it MUST be between ${FOLLOW_UP_MIN_LEN} and ${FOLLOW_UP_MAX_LEN} characters (never shorter than ${FOLLOW_UP_MIN_LEN}), and able to stand alone.
 
 Also write an image_prompt: one or two vivid sentences describing a photo or illustration to run alongside this specific post. The image must directly support and reinforce THIS post's message — the scene and subject should visually echo the pain point, offer, or outcome in the rewritten text, not be generic. If any people appear in the image, they must match the brand's target audience (age, life stage, cultural/regional context) described below — do not default to generic stock-photo demographics. Match the described color theme/mood if one is given. Do not include any text, words, letters, or logos in the image description.
 
