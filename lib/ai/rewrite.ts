@@ -1,4 +1,5 @@
 import type { BrandVoice } from "@/lib/types";
+import { PLATFORM_GUIDANCE, platformLabel, type PlatformId } from "@/lib/platforms";
 
 export type RewriteResult = {
   rewritten_text: string;
@@ -13,18 +14,25 @@ export type RewriteResult = {
   tokens_used: number | null;
 };
 
+export type GenerateRewriteOptions = {
+  brandVoice?: BrandVoice | null;
+  instructions?: string | null;
+  platform?: string | null;
+  targetCharCount?: number | null;
+};
+
 const FOLLOW_UP_MAX_LEN = 120;
 const FOLLOW_UP_COUNT = 5;
 const MAX_INSTRUCTIONS_LEN = 300;
 
-const BASE_PROMPT = `You are an expert Facebook copywriter specializing in lead generation for local service businesses.
+const BASE_PROMPT = `You are an expert social media copywriter specializing in lead generation for local service businesses.
 
-Given a raw, unpolished Facebook post, rewrite it to maximize leads:
+Given a raw, unpolished social media post, rewrite it to maximize leads:
 - First sentence names a pain point or asks a question (the hook)
 - Explicit call-to-action with a contact method (DM, call, link, message)
 - A time-bound or scarcity urgency signal
 
-Format rewritten_text for readability, the way real Facebook posts are formatted:
+Format rewritten_text for readability, the way real social posts are formatted:
 - Short sentences.
 - Short paragraphs — 1 to 2 sentences each.
 - A blank line (\\n\\n) between each distinct idea or concept, so it's easy to skim on a phone.
@@ -37,12 +45,22 @@ Then score the rewrite you produced:
 - confidence (0-1): your confidence in these scores
 - rationale: one sentence explaining the scores
 
-Also write exactly ${FOLLOW_UP_COUNT} short follow-up Facebook posts to run in the days after the main post — teasers, reminders, or a different angle on the same offer, each driving toward the same call to action. Each follow-up post MUST be ${FOLLOW_UP_MAX_LEN} characters or fewer, punchy, and able to stand alone.
+Also write exactly ${FOLLOW_UP_COUNT} short follow-up posts to run in the days after the main post — teasers, reminders, or a different angle on the same offer, each driving toward the same call to action. Each follow-up post MUST be ${FOLLOW_UP_MAX_LEN} characters or fewer, punchy, and able to stand alone.
 
 Also write an image_prompt: one or two vivid sentences describing a photo or illustration to run alongside this specific post. The image must directly support and reinforce THIS post's message — the scene and subject should visually echo the pain point, offer, or outcome in the rewritten text, not be generic. If any people appear in the image, they must match the brand's target audience (age, life stage, cultural/regional context) described below — do not default to generic stock-photo demographics. Match the described color theme/mood if one is given. Do not include any text, words, letters, or logos in the image description.
 
 Respond with ONLY a JSON object, no markdown, matching exactly this shape:
 {"rewritten_text": string, "hook_score": number, "cta_score": number, "urgency_score": number, "lead_gen_score": number, "confidence": number, "rationale": string, "follow_up_posts": string[], "image_prompt": string}`;
+
+function platformGuide(platform: string | null | undefined): string {
+  const guidance = PLATFORM_GUIDANCE[platform as PlatformId] ?? PLATFORM_GUIDANCE.facebook;
+  return `\n\nTarget platform: ${platformLabel(platform)}. Write specifically for this platform's conventions: ${guidance}`;
+}
+
+function targetLengthGuide(targetCharCount: number | null | undefined): string {
+  if (!targetCharCount || targetCharCount <= 0) return "";
+  return `\n\nTarget length: aim for approximately ${targetCharCount} characters in rewritten_text — a soft target, prioritize clarity and completeness over hitting the exact count.`;
+}
 
 function brandVoiceGuide(brandVoice: BrandVoice | null | undefined): string {
   if (!brandVoice) return "";
@@ -69,16 +87,19 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function generateRewrite(
   rawText: string,
-  brandVoice?: BrandVoice | null,
-  instructions?: string | null,
+  options: GenerateRewriteOptions = {},
 ): Promise<RewriteResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is not configured");
   }
 
-  const systemPrompt = BASE_PROMPT + brandVoiceGuide(brandVoice);
-  const trimmedInstructions = instructions?.trim().slice(0, MAX_INSTRUCTIONS_LEN) || null;
+  const systemPrompt =
+    BASE_PROMPT +
+    platformGuide(options.platform) +
+    targetLengthGuide(options.targetCharCount) +
+    brandVoiceGuide(options.brandVoice);
+  const trimmedInstructions = options.instructions?.trim().slice(0, MAX_INSTRUCTIONS_LEN) || null;
 
   try {
     return await attemptRewrite(apiKey, systemPrompt, rawText, trimmedInstructions);

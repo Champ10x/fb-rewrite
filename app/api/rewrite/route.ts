@@ -6,8 +6,10 @@ import { writeAuditLog } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getWeekStart } from "@/lib/quota";
+import { isPlatformId } from "@/lib/platforms";
 
 const MAX_LEN = 2000;
+const MAX_TARGET_CHAR_COUNT = 5000;
 
 function normalize(text: string) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -17,6 +19,11 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const rawText = typeof body?.raw_text === "string" ? body.raw_text.trim() : "";
   const force = body?.force === true;
+  const platform = isPlatformId(body?.platform) ? body.platform : "facebook";
+  const targetCharCount =
+    typeof body?.target_char_count === "number" && body.target_char_count > 0 && body.target_char_count <= MAX_TARGET_CHAR_COUNT
+      ? Math.round(body.target_char_count)
+      : null;
 
   if (!rawText) {
     return NextResponse.json({ error: "empty_text", message: "Please paste a post first" }, { status: 400 });
@@ -72,7 +79,11 @@ export async function POST(request: Request) {
   }
 
   const [{ data: post, error: insertError }, { data: brandVoice }] = await Promise.all([
-    supabase.from("posts").insert({ raw_text: rawText, status: "draft", user_id: user.id }).select().single(),
+    supabase
+      .from("posts")
+      .insert({ raw_text: rawText, status: "draft", user_id: user.id, platform, target_char_count: targetCharCount })
+      .select()
+      .single(),
     supabase.from("brand_voices").select("*").eq("user_id", user.id).maybeSingle(),
   ]);
 
@@ -81,7 +92,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await generateRewrite(rawText, brandVoice);
+    const result = await generateRewrite(rawText, { brandVoice, platform, targetCharCount });
 
     let imageUrl: string | null = null;
     let imageTokensUsed: number | null = null;

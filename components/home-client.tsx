@@ -8,6 +8,7 @@ import { scoreColor, scoreColorClasses } from "@/lib/scoring";
 import { getWeekStart } from "@/lib/quota";
 import { displayTokens } from "@/lib/tokens";
 import { getCharCount, getWordCount } from "@/lib/text-stats";
+import { PLATFORMS, type PlatformId } from "@/lib/platforms";
 import { AuthHeader } from "@/components/auth-header";
 import { BrandVoiceWizard } from "@/components/brand-voice-wizard";
 import { Sidebar } from "@/components/sidebar";
@@ -32,6 +33,8 @@ export function HomeClient({
   const [showWizard, setShowWizard] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [rawText, setRawText] = useState("");
+  const [platform, setPlatform] = useState<PlatformId>("facebook");
+  const [targetCharCount, setTargetCharCount] = useState("");
   const [loadingRewrite, setLoadingRewrite] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [draftFinalText, setDraftFinalText] = useState("");
@@ -83,7 +86,12 @@ export function HomeClient({
       const res = await fetch("/api/rewrite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ raw_text: text, force }),
+        body: JSON.stringify({
+          raw_text: text,
+          force,
+          platform,
+          target_char_count: targetCharCount.trim() ? Number(targetCharCount) : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -109,6 +117,7 @@ export function HomeClient({
       setShowRevisions(false);
       setSaveState("idle");
       setRawText("");
+      setTargetCharCount("");
       if (data.error === "ai_failed") setRewriteError(data.message);
     } catch {
       setRewriteError("Rewrite failed — please try again.");
@@ -323,6 +332,42 @@ export function HomeClient({
                   {rawText.length}/{MAX_LEN}
                 </span>
               </div>
+
+              <div className="mt-3 flex flex-wrap items-end gap-4">
+                <div>
+                  <label htmlFor="platform-select" className="mb-1 block text-xs font-medium text-neutral-500">
+                    Platform
+                  </label>
+                  <select
+                    id="platform-select"
+                    value={platform}
+                    onChange={(e) => setPlatform(e.target.value as PlatformId)}
+                    className="rounded-lg border border-neutral-300 px-2 py-1.5 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                  >
+                    {PLATFORMS.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="target-char-count" className="mb-1 block text-xs font-medium text-neutral-500">
+                    Target length (characters, optional)
+                  </label>
+                  <input
+                    id="target-char-count"
+                    type="number"
+                    min={1}
+                    max={5000}
+                    value={targetCharCount}
+                    onChange={(e) => setTargetCharCount(e.target.value)}
+                    placeholder="e.g. 250"
+                    className="w-32 rounded-lg border border-neutral-300 px-2 py-1.5 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                  />
+                </div>
+              </div>
+
               <button
                 onClick={() => handleRewrite()}
                 disabled={loadingRewrite || !rawText.trim() || rawText.length > MAX_LEN}
@@ -386,7 +431,17 @@ export function HomeClient({
             )}
 
             <div className="mb-4">
-              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-400">Original</p>
+              <div className="mb-1 flex items-center gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">Original</p>
+                <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-500">
+                  {PLATFORMS.find((p) => p.id === activePost.platform)?.label ?? "Facebook"}
+                </span>
+                {activePost.target_char_count && (
+                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-500">
+                    ~{activePost.target_char_count} chars
+                  </span>
+                )}
+              </div>
               <p className="whitespace-pre-wrap rounded-lg bg-neutral-50 p-3 text-sm text-neutral-500">
                 {activePost.raw_text}
               </p>

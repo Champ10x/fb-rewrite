@@ -23,12 +23,16 @@ export async function POST(request: Request) {
   if (rateLimited) return rateLimited;
 
   try {
-    const { data: brandVoice } = await supabase
-      .from("brand_voices")
-      .select("*")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    const result = await generateRewrite(rawText, brandVoice, instructions);
+    const [{ data: brandVoice }, { data: post }] = await Promise.all([
+      supabase.from("brand_voices").select("*").eq("user_id", user.id).maybeSingle(),
+      supabase.from("posts").select("platform, target_char_count").eq("id", postId).maybeSingle(),
+    ]);
+    const result = await generateRewrite(rawText, {
+      brandVoice,
+      instructions,
+      platform: post?.platform ?? "facebook",
+      targetCharCount: post?.target_char_count ?? null,
+    });
 
     const { data: revision, error } = await supabase
       .from("revisions")

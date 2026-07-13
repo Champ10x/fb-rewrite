@@ -63,23 +63,25 @@ describe("generateRewrite — brand voice guide", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await generateRewrite("some raw post", {
-      id: "bv-1",
-      user_id: "u-1",
-      voice_keywords: ["Calm", "Wise"],
-      words_to_use: ["protect your family"],
-      words_to_avoid: ["get rich quick"],
-      content_style: [],
-      caption_length_pref: null,
-      script_length_pref: null,
-      cta_style: [],
-      cta_examples: [],
-      topics: [],
-      persona_note: null,
-      audience_feelings: [],
-      target_audience: "Singaporean, age 45-60, sole breadwinner",
-      color_theme: "gold and black, mature",
-      created_at: "2026-01-01T00:00:00Z",
-      updated_at: "2026-01-01T00:00:00Z",
+      brandVoice: {
+        id: "bv-1",
+        user_id: "u-1",
+        voice_keywords: ["Calm", "Wise"],
+        words_to_use: ["protect your family"],
+        words_to_avoid: ["get rich quick"],
+        content_style: [],
+        caption_length_pref: null,
+        script_length_pref: null,
+        cta_style: [],
+        cta_examples: [],
+        topics: [],
+        persona_note: null,
+        audience_feelings: [],
+        target_audience: "Singaporean, age 45-60, sole breadwinner",
+        color_theme: "gold and black, mature",
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
     });
 
     const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
@@ -141,7 +143,7 @@ describe("generateRewrite — retry instructions", () => {
     const fetchMock = vi.fn().mockResolvedValue(okFetchResponse(mockOpenAiResponse({})));
     vi.stubGlobal("fetch", fetchMock);
 
-    await generateRewrite("some raw post", null, "make it shorter and more urgent");
+    await generateRewrite("some raw post", { instructions: "make it shorter and more urgent" });
 
     const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(requestBody.messages).toHaveLength(3);
@@ -166,11 +168,62 @@ describe("generateRewrite — retry instructions", () => {
     const fetchMock = vi.fn().mockResolvedValue(okFetchResponse(mockOpenAiResponse({})));
     vi.stubGlobal("fetch", fetchMock);
 
-    await generateRewrite("some raw post", null, "x".repeat(500));
+    await generateRewrite("some raw post", { instructions: "x".repeat(500) });
 
     const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
     const instructionMessage = requestBody.messages[2].content as string;
     const quoted = instructionMessage.match(/"([^"]*)"/)?.[1] ?? "";
     expect(quoted.length).toBe(300);
+  });
+});
+
+describe("generateRewrite — platform + target length guidance", () => {
+  it("includes platform-specific guidance in the system prompt", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(okFetchResponse(mockOpenAiResponse({})));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateRewrite("some raw post", { platform: "linkedin" });
+
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const systemMessage = requestBody.messages[0].content as string;
+    expect(systemMessage).toContain("LinkedIn");
+    expect(systemMessage).toContain("thought-leadership");
+  });
+
+  it("defaults to facebook guidance when no platform is given", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(okFetchResponse(mockOpenAiResponse({})));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateRewrite("some raw post");
+
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const systemMessage = requestBody.messages[0].content as string;
+    expect(systemMessage).toContain("Target platform: Facebook");
+  });
+
+  it("includes a target length instruction when targetCharCount is given", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(okFetchResponse(mockOpenAiResponse({})));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateRewrite("some raw post", { targetCharCount: 250 });
+
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const systemMessage = requestBody.messages[0].content as string;
+    expect(systemMessage).toContain("approximately 250 characters");
+  });
+
+  it("omits the target length instruction when targetCharCount is not given", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(okFetchResponse(mockOpenAiResponse({})));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateRewrite("some raw post");
+
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const systemMessage = requestBody.messages[0].content as string;
+    expect(systemMessage).not.toContain("Target length");
   });
 });

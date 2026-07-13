@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import type { AuditLog, Profile, QuotaRequest } from "@/lib/types";
-import { Sidebar } from "@/components/sidebar";
 
 const RISK_CLASSES: Record<string, string> = {
   low: "bg-neutral-100 text-neutral-600",
@@ -62,14 +61,8 @@ export function AdminDashboard({
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#F7F1E3] md:flex-row">
-      <Sidebar isAdmin />
-      <main className="flex-1 pb-24">
-      <div className="mx-auto max-w-6xl px-4 pt-12 sm:px-6">
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Admin</h1>
-        <p className="mt-1 text-sm text-neutral-500">Users, quota requests, and full activity log.</p>
-
-        <section className="mt-8">
+    <div>
+        <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">
             Users ({profiles.length})
           </h2>
@@ -243,8 +236,6 @@ export function AdminDashboard({
             </div>
           )}
         </section>
-      </div>
-      </main>
     </div>
   );
 }

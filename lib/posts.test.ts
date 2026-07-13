@@ -45,6 +45,8 @@ function makePost(overrides: Partial<PostWithRelations>): PostWithRelations {
     raw_text: "raw",
     final_text: null,
     status: "draft",
+    platform: "facebook",
+    target_char_count: null,
     created_at: "2026-01-01T00:00:00Z",
     analyses: [],
     revisions: [],

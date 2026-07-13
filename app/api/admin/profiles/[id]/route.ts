@@ -26,6 +26,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.expiry_date === null || typeof body.expiry_date === "string") {
     updates.expiry_date = body.expiry_date;
   }
+  if (typeof body.is_admin === "boolean") {
+    if (id === user.id && body.is_admin === false) {
+      return NextResponse.json(
+        { error: "self_lockout", message: "You can't remove your own admin access." },
+        { status: 400 },
+      );
+    }
+    updates.is_admin = body.is_admin;
+  }
 
   const { data, error } = await supabase.from("profiles").update(updates).eq("id", id).select().single();
 

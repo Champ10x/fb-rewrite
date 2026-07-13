@@ -4,6 +4,8 @@ export type Post = {
   raw_text: string;
   final_text: string | null;
   status: "draft" | "accepted" | "published";
+  platform: string;
+  target_char_count: number | null;
   created_at: string;
 };
 
@@ -110,4 +112,10 @@ export type AuditLog = {
   before_value: string | null;
   after_value: string | null;
   created_at: string;
+};
+
+export type AppSettings = {
+  id: number;
+  default_weekly_credit_allocation: number;
+  updated_at: string;
 };
