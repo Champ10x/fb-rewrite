@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 
 const VALID_STATUSES = ["active", "suspended", "pending"];
+const PERMANENT_ADMIN_EMAIL = "patrick@idealchamp.com";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -32,6 +33,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         { error: "self_lockout", message: "You can't remove your own admin access." },
         { status: 400 },
       );
+    }
+    if (body.is_admin === false) {
+      const { data: target } = await supabase.from("profiles").select("email").eq("id", id).maybeSingle();
+      if (target?.email === PERMANENT_ADMIN_EMAIL) {
+        return NextResponse.json(
+          { error: "permanent_admin", message: `${PERMANENT_ADMIN_EMAIL} is a permanent admin and can't be revoked.` },
+          { status: 400 },
+        );
+      }
     }
     updates.is_admin = body.is_admin;
   }

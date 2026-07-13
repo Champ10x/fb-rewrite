@@ -33,6 +33,9 @@ function makeAnalysis(overrides: Partial<Analysis>): Analysis {
     image_prompt: null,
     rewrite_tokens_used: null,
     image_tokens_used: null,
+    selected_image_url: null,
+    selected_image_text: null,
+    selected_image_tokens_used: null,
     created_at: "2026-01-01T00:00:00Z",
     ...overrides,
   };

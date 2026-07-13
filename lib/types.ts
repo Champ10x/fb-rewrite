@@ -39,6 +39,9 @@ export type Analysis = {
   image_prompt: string | null;
   rewrite_tokens_used: number | null;
   image_tokens_used: number | null;
+  selected_image_url: string | null;
+  selected_image_text: string | null;
+  selected_image_tokens_used: number | null;
   created_at: string;
 };
 

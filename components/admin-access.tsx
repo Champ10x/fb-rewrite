@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { Profile } from "@/lib/types";
 
+const PERMANENT_ADMIN_EMAIL = "patrick@idealchamp.com";
+
 export function AdminAccess({
   initialProfiles,
   currentUserId,
@@ -60,6 +62,11 @@ export function AdminAccess({
                       you
                     </span>
                   )}
+                  {profile.email === PERMANENT_ADMIN_EMAIL && (
+                    <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                      permanent admin
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-2 whitespace-nowrap text-neutral-500">
                   {profile.created_at ? new Date(profile.created_at).toLocaleDateString() : "—"}
@@ -76,7 +83,11 @@ export function AdminAccess({
                 <td className="px-4 py-2 text-right">
                   <button
                     onClick={() => toggleAdmin(profile)}
-                    disabled={savingId === profile.id || (profile.id === currentUserId && profile.is_admin)}
+                    disabled={
+                      savingId === profile.id ||
+                      (profile.id === currentUserId && profile.is_admin) ||
+                      (profile.email === PERMANENT_ADMIN_EMAIL && profile.is_admin)
+                    }
                     className="rounded-lg border border-neutral-300 px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-40"
                   >
                     {savingId === profile.id ? "Saving…" : profile.is_admin ? "Revoke admin" : "Make admin"}

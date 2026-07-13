@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { BrandVoice, CurrentUser, PostWithRelations, Revision } from "@/lib/types";
+import type { BrandVoice, CurrentUser, PostWithRelations } from "@/lib/types";
 import { latestAnalysis, sortPosts } from "@/lib/posts";
 import { scoreColor, scoreColorClasses } from "@/lib/scoring";
 import { getWeekStart } from "@/lib/quota";
@@ -42,14 +42,13 @@ export function HomeClient({
   const [rewriteError, setRewriteError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
-  const [revisionLoading, setRevisionLoading] = useState(false);
-  const [revisionInstructions, setRevisionInstructions] = useState("");
-  const [showRevisions, setShowRevisions] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PostWithRelations | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [duplicateNotice, setDuplicateNotice] = useState<{ message: string; existingPostId: string } | null>(null);
   const [quotaRequestMessage, setQuotaRequestMessage] = useState("");
   const [quotaRequestStatus, setQuotaRequestStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [selectingIndex, setSelectingIndex] = useState<number | null>(null);
+  const [copiedImage, setCopiedImage] = useState(false);
 
   const sortedPosts = useMemo(() => sortPosts(posts), [posts]);
   const activePost = posts.find((p) => p.id === activePostId) ?? null;
@@ -114,7 +113,6 @@ export function HomeClient({
       setPosts((prev) => [newPost, ...prev]);
       setActivePostId(newPost.id);
       setDraftFinalText(newPost.final_text ?? text);
-      setShowRevisions(false);
       setSaveState("idle");
       setRawText("");
       setTargetCharCount("");
@@ -150,50 +148,68 @@ export function HomeClient({
     }
   }
 
-  async function handleTryAnother() {
+  function handleView(post: PostWithRelations) {
+    setActivePostId(post.id);
+    setDraftFinalText(post.final_text ?? post.raw_text);
+    setRewriteError(null);
+    setAuthNotice(null);
+    setSaveState("idle");
+  }
+
+  async function handleSelectFollowUpImage(index: number, text: string) {
     if (!activePost || !canEditActive) return;
-    setRevisionLoading(true);
+    setSelectingIndex(index);
     setRewriteError(null);
     try {
-      const res = await fetch("/api/revisions", {
+      const res = await fetch(`/api/posts/${activePost.id}/select-image`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          post_id: activePost.id,
-          raw_text: activePost.raw_text,
-          instructions: revisionInstructions.trim() || undefined,
-        }),
+        body: JSON.stringify({ text }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setRewriteError(data.message ?? "Rewrite failed — please try again.");
+        setRewriteError(data.message ?? "Could not create image — please try again.");
         return;
       }
       setPosts((prev) =>
         prev.map((p) =>
-          p.id === activePost.id ? { ...p, revisions: [data.revision, ...p.revisions] } : p,
+          p.id === activePost.id
+            ? { ...p, analyses: p.analyses.map((a) => (a.id === data.analysis.id ? data.analysis : a)) }
+            : p,
         ),
       );
-      setRevisionInstructions("");
-      setShowRevisions(true);
     } catch {
-      setRewriteError("Rewrite failed — please try again.");
+      setRewriteError("Could not create image — please try again.");
     } finally {
-      setRevisionLoading(false);
+      setSelectingIndex(null);
     }
   }
 
-  function handleUseRevision(rev: Revision) {
-    setDraftFinalText(rev.rewritten_text ?? "");
+  async function handleCopyImage(url: string) {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+      setCopiedImage(true);
+      setTimeout(() => setCopiedImage(false), 1500);
+    } catch {
+      // clipboard image copy unavailable in this browser — silently ignore
+    }
   }
 
-  function handleView(post: PostWithRelations) {
-    setActivePostId(post.id);
-    setDraftFinalText(post.final_text ?? post.raw_text);
-    setShowRevisions(false);
-    setRewriteError(null);
-    setAuthNotice(null);
-    setSaveState("idle");
+  async function handleDownloadImage(url: string, filename: string) {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      window.open(url, "_blank");
+    }
   }
 
   async function confirmDelete() {
@@ -483,23 +499,6 @@ export function HomeClient({
             </p>
 
             {canEditActive && (
-              <div className="mt-3">
-                <label htmlFor="revision-instructions" className="mb-1 block text-xs font-medium uppercase tracking-wide text-neutral-400">
-                  Instructions for next rewrite (optional)
-                </label>
-                <input
-                  id="revision-instructions"
-                  type="text"
-                  maxLength={300}
-                  value={revisionInstructions}
-                  onChange={(e) => setRevisionInstructions(e.target.value)}
-                  placeholder="e.g. make it shorter, more urgent, mention weekends"
-                  className="w-full rounded-lg border border-neutral-300 p-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
-                />
-              </div>
-            )}
-
-            {canEditActive && (
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <button
                   onClick={handleSave}
@@ -509,24 +508,6 @@ export function HomeClient({
                   {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : "Save"}
                 </button>
                 {saveState === "error" && <span className="text-sm text-red-600">Save failed — check connection</span>}
-
-                <button
-                  onClick={handleTryAnother}
-                  disabled={revisionLoading}
-                  className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {revisionLoading && <Spinner dark />}
-                  {revisionLoading ? "Generating…" : "Try Another Rewrite"}
-                </button>
-
-                {activePost.revisions.length > 0 && (
-                  <button
-                    onClick={() => setShowRevisions((s) => !s)}
-                    className="text-sm font-medium text-neutral-500 underline-offset-2 hover:underline"
-                  >
-                    {showRevisions ? "Hide" : "Show"} Revision History ({activePost.revisions.length})
-                  </button>
-                )}
               </div>
             )}
 
@@ -540,68 +521,52 @@ export function HomeClient({
             {!!activeAnalysis?.follow_up_posts?.length && (
               <div className="mt-5 border-t border-neutral-200 pt-4">
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">
-                  5 follow-up posts
+                  5 follow-up posts — select one to overlay on the image
                 </p>
                 <ul className="space-y-2">
                   {activeAnalysis.follow_up_posts.map((fp, i) => (
-                    <FollowUpItem key={i} text={fp} />
+                    <FollowUpItem
+                      key={i}
+                      text={fp}
+                      selected={activeAnalysis.selected_image_text === fp}
+                      selecting={selectingIndex === i}
+                      canSelect={canEditActive}
+                      onSelect={() => handleSelectFollowUpImage(i, fp)}
+                    />
                   ))}
                 </ul>
-              </div>
-            )}
 
-            {showRevisions && activePost.revisions.length > 0 && (
-              <div className="mt-5 border-t border-neutral-200 pt-4">
-                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-neutral-400">
-                  Revision History — compare against current
-                </p>
-                <div className="space-y-3">
-                  {activePost.revisions.map((rev) => (
-                    <div key={rev.id} className="rounded-lg border border-neutral-200 p-3">
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div>
-                          <div className="mb-1 flex items-center justify-between gap-2">
-                            <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">Current</span>
-                            <span
-                              className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold ${scoreColorClasses[scoreColor(activeAnalysis?.lead_gen_score)]}`}
-                            >
-                              {activeAnalysis?.lead_gen_score ?? "—"}
-                            </span>
-                          </div>
-                          <p className="whitespace-pre-wrap text-sm text-neutral-600">{draftFinalText}</p>
-                          <p className="mt-1 text-xs text-neutral-400">
-                            {getWordCount(draftFinalText)} words · {getCharCount(draftFinalText)} characters
-                          </p>
-                        </div>
-                        <div className="border-t border-neutral-100 pt-3 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
-                          <div className="mb-1 flex items-center justify-between gap-2">
-                            <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">
-                              {new Date(rev.created_at).toLocaleString()}
-                            </span>
-                            <span
-                              className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold ${scoreColorClasses[scoreColor(rev.lead_gen_score)]}`}
-                            >
-                              {rev.lead_gen_score ?? "—"}
-                            </span>
-                          </div>
-                          <p className="whitespace-pre-wrap text-sm text-neutral-700">{rev.rewritten_text}</p>
-                          <p className="mt-1 text-xs text-neutral-400">
-                            {getWordCount(rev.rewritten_text)} words · {getCharCount(rev.rewritten_text)} characters
-                            {rev.tokens_used != null && <> · Tokens used: {displayTokens(rev.tokens_used)}</>}
-                          </p>
-                          {canEditActive && (
-                            <button
-                              onClick={() => handleUseRevision(rev)}
-                              className="mt-2 text-xs font-medium text-neutral-500 underline-offset-2 hover:underline"
-                            >
-                              Use this
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                {activeAnalysis.selected_image_url && (
+                  <div className="mt-4 rounded-lg border border-neutral-200 p-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={activeAnalysis.selected_image_url}
+                      alt={`Image with overlay text: ${activeAnalysis.selected_image_text ?? ""}`}
+                      className="w-full rounded-lg border border-neutral-200"
+                    />
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={() => handleCopyImage(activeAnalysis.selected_image_url!)}
+                        className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      >
+                        {copiedImage ? "Copied" : "Copy image"}
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleDownloadImage(activeAnalysis.selected_image_url!, `fb-rewrite-${activePost.id}.png`)
+                        }
+                        className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      >
+                        Download
+                      </button>
+                      {activeAnalysis.selected_image_tokens_used != null && (
+                        <span className="text-xs text-neutral-400">
+                          Tokens used — image: {displayTokens(activeAnalysis.selected_image_tokens_used)}
+                        </span>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
               </div>
             )}
           </section>
@@ -756,30 +721,37 @@ function Spinner({ dark }: { dark?: boolean }) {
   );
 }
 
-function FollowUpItem({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // clipboard unavailable — silently ignore, copy is a convenience only
-    }
-  }
-
+function FollowUpItem({
+  text,
+  selected,
+  selecting,
+  canSelect,
+  onSelect,
+}: {
+  text: string;
+  selected: boolean;
+  selecting: boolean;
+  canSelect: boolean;
+  onSelect: () => void;
+}) {
   return (
-    <li className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 p-2.5">
+    <li
+      className={`flex items-center justify-between gap-3 rounded-lg border p-2.5 ${
+        selected ? "border-neutral-900 bg-neutral-50" : "border-neutral-200"
+      }`}
+    >
       <p className="text-sm text-neutral-700">{text}</p>
       <div className="flex shrink-0 items-center gap-2">
         <span className="text-xs text-neutral-400">{text.length}/120</span>
-        <button
-          onClick={handleCopy}
-          className="text-xs font-medium text-neutral-500 underline-offset-2 hover:underline"
-        >
-          {copied ? "Copied" : "Copy"}
-        </button>
+        {canSelect && (
+          <button
+            onClick={onSelect}
+            disabled={selecting}
+            className="inline-flex items-center gap-1 text-xs font-medium text-neutral-500 underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {selecting ? "Creating…" : selected ? "Selected" : "Select"}
+          </button>
+        )}
       </div>
     </li>
   );
