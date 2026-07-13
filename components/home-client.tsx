@@ -742,7 +742,7 @@ function FollowUpItem({
     >
       <p className="text-sm text-neutral-700">{text}</p>
       <div className="flex shrink-0 items-center gap-2">
-        <span className="text-xs text-neutral-400">{text.length}/120</span>
+        <span className="text-xs text-neutral-400">{text.length} chars (70–120)</span>
         {canSelect && (
           <button
             onClick={onSelect}

@@ -1,4 +1,21 @@
+import fs from "fs";
+import path from "path";
 import sharp from "sharp";
+
+// Serverless runtimes (Vercel/Lambda) ship no system fonts, so an SVG
+// <text> with only a font-family name rasterizes as empty glyph boxes.
+// Embedding the font's bytes directly in the SVG via @font-face sidesteps
+// that regardless of what fonts (if any) are installed on the host.
+const FONT_PATH = path.join(process.cwd(), "lib/ai/fonts/inter-extrabold-latin.woff");
+const FONT_FAMILY = "OverlayFont";
+let fontBase64Cache: string | null = null;
+
+function getFontBase64(): string {
+  if (fontBase64Cache === null) {
+    fontBase64Cache = fs.readFileSync(FONT_PATH).toString("base64");
+  }
+  return fontBase64Cache;
+}
 
 function escapeXml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -42,11 +59,20 @@ function buildOverlaySvg(text: string, width: number, height: number): string {
   const textLines = lines
     .map((line, i) => {
       const y = blockY + padding + fontSize * 0.85 + i * lineHeight;
-      return `<text x="${width / 2}" y="${y}" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="${fontSize}" fill="#ffffff" text-anchor="middle" stroke="#000000" stroke-width="${(fontSize * 0.05).toFixed(1)}" paint-order="stroke" stroke-linejoin="round">${escapeXml(line)}</text>`;
+      return `<text x="${width / 2}" y="${y}" font-family="${FONT_FAMILY}" font-weight="800" font-size="${fontSize}" fill="#ffffff" text-anchor="middle" stroke="#000000" stroke-width="${(fontSize * 0.05).toFixed(1)}" paint-order="stroke" stroke-linejoin="round">${escapeXml(line)}</text>`;
     })
     .join("");
 
   return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <style>
+        @font-face {
+          font-family: '${FONT_FAMILY}';
+          font-weight: 800;
+          src: url(data:font/woff;base64,${getFontBase64()}) format('woff');
+        }
+      </style>
+    </defs>
     <rect x="${blockX}" y="${blockY}" width="${blockWidth}" height="${blockHeight}" rx="18" fill="#000000" fill-opacity="0.55" />
     ${textLines}
   </svg>`;

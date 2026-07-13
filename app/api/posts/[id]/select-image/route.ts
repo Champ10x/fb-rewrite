@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
-import { generateImage } from "@/lib/ai/image";
 import { overlayTextOnImage } from "@/lib/ai/image-text-overlay";
 import { writeAuditLog } from "@/lib/audit";
 
@@ -55,11 +54,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!analysis) {
     return NextResponse.json({ error: "not_found", message: "No analysis found for this post" }, { status: 404 });
   }
+  if (!analysis.image_url) {
+    return NextResponse.json(
+      { error: "no_base_image", message: "This post doesn't have an image to add text to yet." },
+      { status: 400 },
+    );
+  }
 
   try {
-    const basePrompt = analysis.image_prompt || "A simple, relevant photo for a social media post.";
-    const image = await generateImage(basePrompt);
-    const composited = await overlayTextOnImage(image.base64, text);
+    // Reuse the image already generated (and shown to the user) for this
+    // post rather than generating a new one — regenerating produced a
+    // different, sometimes mismatched, image every time.
+    const baseImageRes = await fetch(analysis.image_url);
+    if (!baseImageRes.ok) {
+      throw new Error("Failed to fetch base image");
+    }
+    const baseImageBuffer = Buffer.from(await baseImageRes.arrayBuffer());
+    const composited = await overlayTextOnImage(baseImageBuffer.toString("base64"), text);
 
     const path = `${user.id}/${id}-selected.png`;
     const { error: uploadError } = await supabase.storage
@@ -78,7 +89,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .update({
         selected_image_url: bustUrl,
         selected_image_text: text,
-        selected_image_tokens_used: image.tokensUsed,
+        selected_image_tokens_used: null,
       })
       .eq("id", analysis.id)
       .select()
