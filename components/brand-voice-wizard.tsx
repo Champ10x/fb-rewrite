@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { BrandVoice } from "@/lib/types";
+import { getKeyStepStatus } from "@/lib/copy-playbook";
 
 type MultiKey = "voice_keywords" | "content_style" | "cta_style" | "audience_feelings";
 type TextKey =
@@ -26,7 +27,7 @@ const STEPS: Step[] = [
     key: "voice_keywords",
     type: "multi",
     question: "Which words best describe your voice?",
-    hint: "Pick as many as fit — number to toggle.",
+    hint: "Pick as many as fit.",
     options: ["Calm", "Confident", "Friendly", "Professional", "Bold", "Playful", "Warm", "Direct", "Witty", "Authoritative"],
   },
   {
@@ -115,16 +116,40 @@ const STEPS: Step[] = [
   },
 ];
 
+function stepByKey(key: TextKey) {
+  return STEPS.find((s) => s.key === key) as Extract<Step, { type: "text" }>;
+}
+
 type Answers = Record<string, string[] | string>;
 
+function brandVoiceToAnswers(bv: BrandVoice): Answers {
+  return {
+    voice_keywords: bv.voice_keywords,
+    content_style: bv.content_style,
+    words_to_use: bv.words_to_use.join(", "),
+    words_to_avoid: bv.words_to_avoid.join(", "),
+    caption_length_pref: bv.caption_length_pref ?? "",
+    script_length_pref: bv.script_length_pref ?? "",
+    cta_style: bv.cta_style,
+    cta_examples: bv.cta_examples.join("\n"),
+    topics: bv.topics.join(", "),
+    persona_note: bv.persona_note ?? "",
+    audience_feelings: bv.audience_feelings,
+    target_audience: bv.target_audience ?? "",
+    color_theme: bv.color_theme ?? "",
+  };
+}
+
 export function BrandVoiceWizard({
+  existingBrandVoice,
   onComplete,
   onClose,
 }: {
+  existingBrandVoice?: BrandVoice | null;
   onComplete: (bv: BrandVoice) => void;
   onClose: () => void;
 }) {
-  const [mode, setMode] = useState<"choose" | "questions" | "upload">("choose");
+  const [mode, setMode] = useState<"choose" | "questions" | "upload" | "edit">("choose");
   const [stepIndex, setStepIndex] = useState(0);
   const [answers, setAnswers] = useState<Answers>({});
   const [saving, setSaving] = useState(false);
@@ -134,6 +159,8 @@ export function BrandVoiceWizard({
 
   const step = STEPS[stepIndex];
   const isLast = stepIndex === STEPS.length - 1;
+  const missingKeySteps = getKeyStepStatus(existingBrandVoice).filter((s) => !s.filled);
+  const liveKeySteps = getKeyStepStatus(answers);
 
   function toggleOption(key: MultiKey, option: string) {
     setAnswers((prev) => {
@@ -162,6 +189,12 @@ export function BrandVoiceWizard({
   function goBack() {
     if (stepIndex === 0) return;
     setStepIndex((i) => i - 1);
+  }
+
+  function openEdit() {
+    setAnswers(existingBrandVoice ? brandVoiceToAnswers(existingBrandVoice) : {});
+    setError(null);
+    setMode("edit");
   }
 
   async function handleSave() {
@@ -244,26 +277,55 @@ export function BrandVoiceWizard({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-lg">
+      <div className={`w-full rounded-xl bg-white p-6 shadow-lg ${mode === "edit" ? "max-w-2xl" : "max-w-lg"}`}>
         {mode === "choose" && (
           <>
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-neutral-900">Set up your brand voice</h3>
+              <h3 className="text-lg font-semibold text-neutral-900">
+                {existingBrandVoice ? "Edit your brand voice" : "Set up your brand voice"}
+              </h3>
               <button onClick={onClose} className="text-sm text-neutral-400 hover:text-neutral-600">
                 Close
               </button>
             </div>
             <p className="mb-4 text-sm text-neutral-500">How would you like to do this?</p>
             <ul className="space-y-2">
+              {existingBrandVoice && (
+                <li>
+                  <button
+                    onClick={openEdit}
+                    className="flex w-full items-start gap-3 rounded-lg border border-neutral-300 px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50"
+                  >
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-500">
+                      1
+                    </span>
+                    <span>
+                      <span className="block">Edit your current answers</span>
+                      {missingKeySteps.length > 0 ? (
+                        <span className="mt-0.5 block text-xs text-amber-600">
+                          {missingKeySteps.length} key input{missingKeySteps.length > 1 ? "s" : ""} missing:{" "}
+                          {missingKeySteps.map((s) => s.label).join(", ")}
+                        </span>
+                      ) : (
+                        <span className="mt-0.5 block text-xs text-emerald-600">All key inputs set</span>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              )}
               <li>
                 <button
-                  onClick={() => setMode("questions")}
+                  onClick={() => {
+                    setAnswers({});
+                    setStepIndex(0);
+                    setMode("questions");
+                  }}
                   className="flex w-full items-center gap-3 rounded-lg border border-neutral-300 px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50"
                 >
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-500">
-                    1
+                    {existingBrandVoice ? 2 : 1}
                   </span>
-                  Answer a few quick questions
+                  Start over with a few quick questions
                 </button>
               </li>
               <li>
@@ -272,7 +334,7 @@ export function BrandVoiceWizard({
                   className="flex w-full items-center gap-3 rounded-lg border border-neutral-300 px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50"
                 >
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-500">
-                    2
+                    {existingBrandVoice ? 3 : 2}
                   </span>
                   Upload a brand voice document
                 </button>
@@ -347,63 +409,11 @@ export function BrandVoiceWizard({
 
             <div className="mt-4">
               {step.type === "multi" && (
-                <ul className="space-y-2">
-                  {step.options.map((option, i) => {
-                    const selected = Array.isArray(answers[step.key]) && (answers[step.key] as string[]).includes(option);
-                    return (
-                      <li key={option}>
-                        <button
-                          onClick={() => toggleOption(step.key, option)}
-                          className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm transition ${
-                            selected
-                              ? "border-neutral-900 bg-neutral-900 text-white"
-                              : "border-neutral-300 text-neutral-700 hover:bg-neutral-50"
-                          }`}
-                        >
-                          <span
-                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                              selected ? "bg-white text-neutral-900" : "bg-neutral-100 text-neutral-500"
-                            }`}
-                          >
-                            {i + 1}
-                          </span>
-                          {option}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
+                <OptionToggleList options={step.options} selected={answers[step.key]} onToggle={(o) => toggleOption(step.key, o)} />
               )}
-
               {step.type === "single" && (
-                <ul className="space-y-2">
-                  {step.options.map((option, i) => {
-                    const selected = answers[step.key] === option;
-                    return (
-                      <li key={option}>
-                        <button
-                          onClick={() => selectSingle(step.key, option)}
-                          className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left text-sm transition ${
-                            selected
-                              ? "border-neutral-900 bg-neutral-900 text-white"
-                              : "border-neutral-300 text-neutral-700 hover:bg-neutral-50"
-                          }`}
-                        >
-                          <span
-                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                              selected ? "bg-white text-neutral-900" : "bg-neutral-100 text-neutral-500"
-                            }`}
-                          >
-                            {i + 1}
-                          </span>
-                          {option}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
+                <OptionSingleList options={step.options} selected={answers[step.key]} onSelect={(o) => selectSingle(step.key, o)} />
               )}
-
               {step.type === "text" && (
                 <textarea
                   rows={3}
@@ -434,7 +444,258 @@ export function BrandVoiceWizard({
             </div>
           </>
         )}
+
+        {mode === "edit" && (
+          <>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-neutral-900">Edit your brand voice</h3>
+              <button onClick={onClose} className="text-sm text-neutral-400 hover:text-neutral-600">
+                Close
+              </button>
+            </div>
+
+            <div className="mb-5 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                Key inputs from the Copy Playbook
+              </p>
+              <ul className="space-y-1">
+                {liveKeySteps.map((s) => (
+                  <li key={s.id} className="flex items-start gap-2 text-sm">
+                    <span
+                      className={`mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full ${s.filled ? "bg-emerald-500" : "bg-amber-500"}`}
+                    />
+                    <span className={s.filled ? "text-neutral-500" : "text-neutral-700"}>
+                      <span className="font-medium">{s.label}</span> — {s.description}
+                      {!s.filled && <span className="ml-1 text-amber-600">(not set)</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="max-h-[55vh] space-y-6 overflow-y-auto pr-1">
+              <EditSection title="Reader — who this is for">
+                <FieldLabel text="Who is your target audience?" />
+                <textarea
+                  rows={2}
+                  value={typeof answers.target_audience === "string" ? answers.target_audience : ""}
+                  onChange={(e) => setText("target_audience", e.target.value)}
+                  placeholder={stepByKey("target_audience").placeholder}
+                  className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                />
+              </EditSection>
+
+              <EditSection title="Tension — what they want or fear">
+                <FieldLabel text="How should your audience feel after reading your posts?" />
+                <OptionToggleList
+                  options={(STEPS.find((s) => s.key === "audience_feelings") as Extract<Step, { type: "multi" }>).options}
+                  selected={answers.audience_feelings}
+                  onToggle={(o) => toggleOption("audience_feelings", o)}
+                />
+              </EditSection>
+
+              <EditSection title="Proof — the outcome you deliver">
+                <FieldLabel text="Describe your persona in one sentence" />
+                <textarea
+                  rows={2}
+                  value={typeof answers.persona_note === "string" ? answers.persona_note : ""}
+                  onChange={(e) => setText("persona_note", e.target.value)}
+                  placeholder={stepByKey("persona_note").placeholder}
+                  className="mb-3 w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                />
+                <FieldLabel text="What topics or stories do you usually post about?" />
+                <textarea
+                  rows={2}
+                  value={typeof answers.topics === "string" ? answers.topics : ""}
+                  onChange={(e) => setText("topics", e.target.value)}
+                  placeholder={stepByKey("topics").placeholder}
+                  className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                />
+              </EditSection>
+
+              <EditSection title="The Ask — how you invite contact">
+                <FieldLabel text="How do you like to invite action?" />
+                <OptionToggleList
+                  options={(STEPS.find((s) => s.key === "cta_style") as Extract<Step, { type: "multi" }>).options}
+                  selected={answers.cta_style}
+                  onToggle={(o) => toggleOption("cta_style", o)}
+                />
+                <div className="mt-3">
+                  <FieldLabel text="Give 1-3 example CTAs you actually use" />
+                  <textarea
+                    rows={2}
+                    value={typeof answers.cta_examples === "string" ? answers.cta_examples : ""}
+                    onChange={(e) => setText("cta_examples", e.target.value)}
+                    placeholder={stepByKey("cta_examples").placeholder}
+                    className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                  />
+                </div>
+              </EditSection>
+
+              <EditSection title="Voice & style">
+                <FieldLabel text="Which words best describe your voice?" />
+                <OptionToggleList
+                  options={(STEPS.find((s) => s.key === "voice_keywords") as Extract<Step, { type: "multi" }>).options}
+                  selected={answers.voice_keywords}
+                  onToggle={(o) => toggleOption("voice_keywords", o)}
+                />
+                <div className="mt-3">
+                  <FieldLabel text="What content style fits you best?" />
+                  <OptionToggleList
+                    options={(STEPS.find((s) => s.key === "content_style") as Extract<Step, { type: "multi" }>).options}
+                    selected={answers.content_style}
+                    onToggle={(o) => toggleOption("content_style", o)}
+                  />
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <FieldLabel text="Words or phrases you like to use" />
+                    <textarea
+                      rows={2}
+                      value={typeof answers.words_to_use === "string" ? answers.words_to_use : ""}
+                      onChange={(e) => setText("words_to_use", e.target.value)}
+                      placeholder={stepByKey("words_to_use").placeholder}
+                      className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel text="Words or phrases to avoid" />
+                    <textarea
+                      rows={2}
+                      value={typeof answers.words_to_avoid === "string" ? answers.words_to_avoid : ""}
+                      onChange={(e) => setText("words_to_avoid", e.target.value)}
+                      placeholder={stepByKey("words_to_avoid").placeholder}
+                      className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                    />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <FieldLabel text="How long should your captions be?" />
+                  <OptionSingleList
+                    options={(STEPS.find((s) => s.key === "caption_length_pref") as Extract<Step, { type: "single" }>).options}
+                    selected={answers.caption_length_pref}
+                    onSelect={(o) => selectSingle("caption_length_pref", o)}
+                  />
+                </div>
+                <div className="mt-3">
+                  <FieldLabel text="How long should your short-form video scripts be?" />
+                  <OptionSingleList
+                    options={(STEPS.find((s) => s.key === "script_length_pref") as Extract<Step, { type: "single" }>).options}
+                    selected={answers.script_length_pref}
+                    onSelect={(o) => selectSingle("script_length_pref", o)}
+                  />
+                </div>
+              </EditSection>
+
+              <EditSection title="Image">
+                <FieldLabel text="What color theme or visual mood fits your brand?" />
+                <textarea
+                  rows={2}
+                  value={typeof answers.color_theme === "string" ? answers.color_theme : ""}
+                  onChange={(e) => setText("color_theme", e.target.value)}
+                  placeholder={stepByKey("color_theme").placeholder}
+                  className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                />
+              </EditSection>
+            </div>
+
+            {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+
+            <div className="mt-5 flex items-center justify-between border-t border-neutral-200 pt-4">
+              <button
+                onClick={() => setMode("choose")}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-neutral-500 hover:bg-neutral-100"
+              >
+                Back
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save changes"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
+  );
+}
+
+function EditSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">{title}</p>
+      {children}
+    </div>
+  );
+}
+
+function FieldLabel({ text }: { text: string }) {
+  return <p className="mb-1.5 text-sm text-neutral-600">{text}</p>;
+}
+
+function OptionToggleList({
+  options,
+  selected,
+  onToggle,
+}: {
+  options: string[];
+  selected: string[] | string | undefined;
+  onToggle: (option: string) => void;
+}) {
+  return (
+    <ul className="flex flex-wrap gap-2">
+      {options.map((option) => {
+        const isSelected = Array.isArray(selected) && selected.includes(option);
+        return (
+          <li key={option}>
+            <button
+              onClick={() => onToggle(option)}
+              className={`rounded-full border px-3 py-1.5 text-left text-sm transition ${
+                isSelected
+                  ? "border-neutral-900 bg-neutral-900 text-white"
+                  : "border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+              }`}
+            >
+              {option}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function OptionSingleList({
+  options,
+  selected,
+  onSelect,
+}: {
+  options: string[];
+  selected: string[] | string | undefined;
+  onSelect: (option: string) => void;
+}) {
+  return (
+    <ul className="flex flex-wrap gap-2">
+      {options.map((option) => {
+        const isSelected = selected === option;
+        return (
+          <li key={option}>
+            <button
+              onClick={() => onSelect(option)}
+              className={`rounded-full border px-3 py-1.5 text-left text-sm transition ${
+                isSelected
+                  ? "border-neutral-900 bg-neutral-900 text-white"
+                  : "border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+              }`}
+            >
+              {option}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

@@ -28,20 +28,31 @@ const MAX_INSTRUCTIONS_LEN = 300;
 
 const BASE_PROMPT = `You are an expert social media copywriter specializing in lead generation for local service businesses.
 
-Given a raw, unpolished social media post, rewrite it to maximize leads:
-- First sentence names a pain point or asks a question (the hook)
-- Explicit call-to-action with a contact method (DM, call, link, message)
-- A time-bound or scarcity urgency signal
+Rewrite the raw post using this six-step method. A rewrite converts when the reader feels the cost of ignoring the post is higher than the effort of acting on it — every line should either sharpen that feeling or remove a reason to hesitate.
+
+Effective is not manipulative: if the reader wouldn't thank the business after responding, the fix is a better offer, not more pressure. Never manufacture urgency or scarcity the raw post doesn't support — if there's nothing to base it on, keep the urgency signal soft or leave it out rather than inventing a fake deadline.
+
+The hook (first sentence):
+1. Reader — name the exact person and situation this post is for, not a generic audience.
+2. Tension — lead with the cost of the status quo: what the reader is already losing by not acting.
+
+The body:
+3. Proof — replace adjectives ("trusted", "best") with a specific, checkable fact: a number, a name, a guarantee.
+4. Objection — name the one reason the reader won't act, and answer it in the same breath.
+
+The CTA line:
+5. Risk — shrink the first ask: a DM, call, or message, not a purchase.
+6. The Ask — one verb, one contact method, stated once. Never dilute it with a second competing CTA.
 
 Format rewritten_text for readability, the way real social posts are formatted:
 - Short sentences.
 - Short paragraphs — 1 to 2 sentences each.
 - A blank line (\\n\\n) between each distinct idea or concept, so it's easy to skim on a phone.
 
-Then score the rewrite you produced:
-- hook_score (0-10): does the first sentence name a pain point or ask a question?
-- cta_score (0-10): is there an explicit verb + contact method?
-- urgency_score (0-10): is there a time-bound phrase or scarcity signal?
+Then score the rewrite you produced against the six steps:
+- hook_score (0-10): does the hook (steps 1-2) name the reader's exact situation and the cost of inaction?
+- cta_score (0-10): does the body and CTA (steps 3-6) include a checkable proof point, answer the likely objection, and end in exactly one verb + one contact method?
+- urgency_score (0-10): is there a genuine (not manufactured) time-bound phrase or scarcity signal?
 - lead_gen_score (0-100): overall lead-gen strength, a weighted average of the three above scaled to 100, capped at 100
 - confidence (0-1): your confidence in these scores
 - rationale: one sentence explaining the scores
@@ -66,22 +77,44 @@ function targetLengthGuide(targetCharCount: number | null | undefined): string {
 function brandVoiceGuide(brandVoice: BrandVoice | null | undefined): string {
   if (!brandVoice) return "";
 
-  const lines: string[] = [];
-  if (brandVoice.voice_keywords.length) lines.push(`Voice: ${brandVoice.voice_keywords.join(", ")}`);
-  if (brandVoice.content_style.length) lines.push(`Style: ${brandVoice.content_style.join(", ")}`);
-  if (brandVoice.words_to_use.length) lines.push(`Prefer these words/phrases: ${brandVoice.words_to_use.join(", ")}`);
-  if (brandVoice.words_to_avoid.length) lines.push(`Never use these words/phrases: ${brandVoice.words_to_avoid.join(", ")}`);
-  if (brandVoice.cta_style.length) lines.push(`CTA style: ${brandVoice.cta_style.join(", ")}`);
-  if (brandVoice.cta_examples.length) lines.push(`CTA examples to model: ${brandVoice.cta_examples.join(" | ")}`);
-  if (brandVoice.caption_length_pref) lines.push(`Caption length: ${brandVoice.caption_length_pref}`);
-  if (brandVoice.persona_note) lines.push(`Persona: ${brandVoice.persona_note}`);
-  if (brandVoice.audience_feelings.length) lines.push(`The audience should feel: ${brandVoice.audience_feelings.join(", ")}`);
-  if (brandVoice.target_audience) lines.push(`Target audience (match this in any people shown in the image): ${brandVoice.target_audience}`);
-  if (brandVoice.color_theme) lines.push(`Color theme / visual mood for the image: ${brandVoice.color_theme}`);
+  // Step 1 (Reader) and step 2 (Tension) — use this instead of inventing a
+  // generic audience or a made-up want/fear.
+  const readerLines: string[] = [];
+  if (brandVoice.target_audience) readerLines.push(`Exact reader — step 1 (Reader): ${brandVoice.target_audience}`);
+  if (brandVoice.audience_feelings.length)
+    readerLines.push(`What they already want or fear — step 2 (Tension): ${brandVoice.audience_feelings.join(", ")}`);
 
-  if (!lines.length) return "";
+  // Step 3 (Proof) — the checkable fact/outcome to lead the body with.
+  const proofLines: string[] = [];
+  if (brandVoice.persona_note) proofLines.push(`The one outcome this business delivers: ${brandVoice.persona_note}`);
+  if (brandVoice.topics.length) proofLines.push(`Topics with real proof behind them: ${brandVoice.topics.join(", ")}`);
 
-  return `\n\nWrite in this specific brand voice — treat it as a strict style guide, overriding any generic tone above:\n${lines.map((l) => `- ${l}`).join("\n")}`;
+  // Steps 5-6 (Risk, The Ask) — how this business actually asks for contact.
+  const askLines: string[] = [];
+  if (brandVoice.cta_style.length) askLines.push(`How this business asks for contact — step 5 (Risk): ${brandVoice.cta_style.join(", ")}`);
+  if (brandVoice.cta_examples.length) askLines.push(`CTA examples to model — step 6 (The Ask): ${brandVoice.cta_examples.join(" | ")}`);
+
+  const voiceLines: string[] = [];
+  if (brandVoice.voice_keywords.length) voiceLines.push(`Voice: ${brandVoice.voice_keywords.join(", ")}`);
+  if (brandVoice.content_style.length) voiceLines.push(`Style: ${brandVoice.content_style.join(", ")}`);
+  if (brandVoice.words_to_use.length) voiceLines.push(`Prefer these words/phrases: ${brandVoice.words_to_use.join(", ")}`);
+  if (brandVoice.words_to_avoid.length) voiceLines.push(`Never use these words/phrases: ${brandVoice.words_to_avoid.join(", ")}`);
+  if (brandVoice.caption_length_pref) voiceLines.push(`Caption length: ${brandVoice.caption_length_pref}`);
+
+  const imageLines: string[] = [];
+  if (brandVoice.target_audience) imageLines.push(`Target audience (match this in any people shown in the image): ${brandVoice.target_audience}`);
+  if (brandVoice.color_theme) imageLines.push(`Color theme / visual mood for the image: ${brandVoice.color_theme}`);
+
+  const sections: string[] = [];
+  if (readerLines.length) sections.push(readerLines.map((l) => `- ${l}`).join("\n"));
+  if (proofLines.length) sections.push(proofLines.map((l) => `- ${l}`).join("\n"));
+  if (askLines.length) sections.push(askLines.map((l) => `- ${l}`).join("\n"));
+  if (voiceLines.length) sections.push(voiceLines.map((l) => `- ${l}`).join("\n"));
+  if (imageLines.length) sections.push(imageLines.map((l) => `- ${l}`).join("\n"));
+
+  if (!sections.length) return "";
+
+  return `\n\nUse these brand-specific inputs for the six-step method above instead of inventing specifics. Where a step has no input below, fall back to the generic instructions above rather than guessing. Treat all of this as a strict style guide, overriding any generic tone above:\n${sections.join("\n")}`;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

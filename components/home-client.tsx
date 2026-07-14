@@ -666,6 +666,7 @@ export function HomeClient({
 
       {showWizard && (
         <BrandVoiceWizard
+          existingBrandVoice={brandVoice}
           onClose={() => setShowWizard(false)}
           onComplete={(bv) => {
             setBrandVoice(bv);
