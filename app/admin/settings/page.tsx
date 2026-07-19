@@ -8,7 +8,14 @@ export default async function AdminSettingsPage() {
 
   return (
     <AdminSettings
-      initialSettings={(settings as AppSettings | null) ?? { id: 1, default_weekly_credit_allocation: 3, updated_at: "" }}
+      initialSettings={
+        (settings as AppSettings | null) ?? {
+          id: 1,
+          default_weekly_credit_allocation: 3,
+          token_display_markup: 1.5,
+          updated_at: "",
+        }
+      }
     />
   );
 }

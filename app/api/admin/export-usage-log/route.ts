@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { sendNotificationEmail } from "@/lib/email";
-import { displayTokens } from "@/lib/tokens";
+import { displayTokens, DEFAULT_TOKEN_DISPLAY_MARKUP } from "@/lib/tokens";
 
 const RECIPIENT = "patrick@idealchamp.com";
 
@@ -12,10 +12,12 @@ export async function POST() {
   const { user, response } = await requireAdmin(supabase);
   if (!user) return response;
 
-  const [{ data: entries, error }, { data: profiles }] = await Promise.all([
+  const [{ data: entries, error }, { data: profiles }, { data: appSettings }] = await Promise.all([
     supabase.from("session_feedback").select("*").order("created_at", { ascending: false }),
     supabase.from("profiles").select("id, email"),
+    supabase.from("app_settings").select("token_display_markup").eq("id", 1).maybeSingle(),
   ]);
+  const tokenMarkup = appSettings?.token_display_markup ?? DEFAULT_TOKEN_DISPLAY_MARKUP;
 
   if (error) {
     return NextResponse.json({ error: "db_error", message: "Could not load the usage log" }, { status: 500 });
@@ -41,7 +43,7 @@ export async function POST() {
       rating: entry.rating,
       feedback: entry.feedback ?? "",
       session_tries: entry.session_tries ?? "",
-      session_tokens_used: entry.session_tokens_used != null ? displayTokens(entry.session_tokens_used) : "",
+      session_tokens_used: entry.session_tokens_used != null ? displayTokens(entry.session_tokens_used, tokenMarkup) : "",
     });
   }
 

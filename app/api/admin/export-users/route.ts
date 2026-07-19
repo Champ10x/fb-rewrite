@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { sendNotificationEmail } from "@/lib/email";
+import { displayTokens, DEFAULT_TOKEN_DISPLAY_MARKUP } from "@/lib/tokens";
 
 const RECIPIENT = "patrick@idealchamp.com";
 
@@ -11,10 +12,12 @@ export async function POST() {
   const { user, response } = await requireAdmin(supabase);
   if (!user) return response;
 
-  const [{ data: profiles, error }, { data: posts }] = await Promise.all([
+  const [{ data: profiles, error }, { data: posts }, { data: appSettings }] = await Promise.all([
     supabase.from("profiles").select("*").order("created_at", { ascending: false }),
     supabase.from("posts").select("user_id, analyses(rewrite_tokens_used, image_tokens_used)"),
+    supabase.from("app_settings").select("token_display_markup").eq("id", 1).maybeSingle(),
   ]);
+  const tokenMarkup = appSettings?.token_display_markup ?? DEFAULT_TOKEN_DISPLAY_MARKUP;
 
   if (error) {
     return NextResponse.json({ error: "db_error", message: "Could not load the user database" }, { status: 500 });
@@ -50,7 +53,11 @@ export async function POST() {
   sheet.getRow(1).font = { bold: true };
   for (const profile of profiles ?? []) {
     const lifetime = lifetimeByUser.get(profile.id) ?? { tries: 0, tokens: 0 };
-    sheet.addRow({ ...profile, lifetime_tries: lifetime.tries, lifetime_tokens: lifetime.tokens });
+    sheet.addRow({
+      ...profile,
+      lifetime_tries: lifetime.tries,
+      lifetime_tokens: displayTokens(lifetime.tokens, tokenMarkup),
+    });
   }
 
   const buffer = await workbook.xlsx.writeBuffer();

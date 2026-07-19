@@ -1,15 +1,18 @@
 import { createClient } from "@/lib/supabase/server";
 import { HomeClient } from "@/components/home-client";
 import { WEEKLY_POST_QUOTA } from "@/lib/quota";
+import { DEFAULT_TOKEN_DISPLAY_MARKUP } from "@/lib/tokens";
 import type { BrandVoice, PostWithRelations } from "@/lib/types";
 
 export default async function Home() {
   const supabase = await createClient();
 
-  const [{ data: posts }, { data: userData }] = await Promise.all([
+  const [{ data: posts }, { data: userData }, { data: appSettings }] = await Promise.all([
     supabase.from("posts").select("*, analyses(*), revisions(*)").order("created_at", { ascending: false }),
     supabase.auth.getUser(),
+    supabase.from("app_settings").select("token_display_markup").eq("id", 1).maybeSingle(),
   ]);
+  const tokenMarkup = appSettings?.token_display_markup ?? DEFAULT_TOKEN_DISPLAY_MARKUP;
 
   const initialPosts = (posts ?? []) as PostWithRelations[];
   const currentUser = userData?.user ? { id: userData.user.id, email: userData.user.email ?? "" } : null;
@@ -34,6 +37,7 @@ export default async function Home() {
       initialBrandVoice={initialBrandVoice}
       weeklyQuota={weeklyQuota}
       isAdmin={isAdmin}
+      tokenMarkup={tokenMarkup}
     />
   );
 }

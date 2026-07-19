@@ -122,6 +122,7 @@ export type AuditLog = {
 export type AppSettings = {
   id: number;
   default_weekly_credit_allocation: number;
+  token_display_markup: number;
   updated_at: string;
 };
 

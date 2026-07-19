@@ -11,11 +11,15 @@ export async function PATCH(request: Request) {
   if (!body || typeof body.default_weekly_credit_allocation !== "number" || body.default_weekly_credit_allocation < 0) {
     return NextResponse.json({ error: "bad_request", message: "default_weekly_credit_allocation must be a non-negative number" }, { status: 400 });
   }
+  if (typeof body.token_display_markup !== "number" || body.token_display_markup <= 0) {
+    return NextResponse.json({ error: "bad_request", message: "token_display_markup must be a positive number" }, { status: 400 });
+  }
 
   const { data, error } = await supabase
     .from("app_settings")
     .update({
       default_weekly_credit_allocation: Math.floor(body.default_weekly_credit_allocation),
+      token_display_markup: body.token_display_markup,
       updated_at: new Date().toISOString(),
     })
     .eq("id", 1)

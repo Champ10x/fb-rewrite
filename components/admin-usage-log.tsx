@@ -7,9 +7,11 @@ import { displayTokens } from "@/lib/tokens";
 export function AdminUsageLog({
   entries,
   profiles,
+  tokenMarkup,
 }: {
   entries: SessionFeedback[];
   profiles: Pick<Profile, "id" | "email">[];
+  tokenMarkup: number;
 }) {
   const [exportStatus, setExportStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [exportError, setExportError] = useState<string | null>(null);
@@ -103,7 +105,7 @@ export function AdminUsageLog({
                   </td>
                   <td className="px-4 py-2 text-neutral-500">{entry.session_tries ?? "—"}</td>
                   <td className="px-4 py-2 text-neutral-500">
-                    {entry.session_tokens_used != null ? displayTokens(entry.session_tokens_used) : "—"}
+                    {entry.session_tokens_used != null ? displayTokens(entry.session_tokens_used, tokenMarkup) : "—"}
                   </td>
                 </tr>
               ))}

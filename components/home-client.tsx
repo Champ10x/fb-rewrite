@@ -24,12 +24,14 @@ export function HomeClient({
   initialBrandVoice,
   weeklyQuota,
   isAdmin,
+  tokenMarkup,
 }: {
   initialPosts: PostWithRelations[];
   currentUser: CurrentUser | null;
   initialBrandVoice: BrandVoice | null;
   weeklyQuota: number;
   isAdmin: boolean;
+  tokenMarkup: number;
 }) {
   const [posts, setPosts] = useState<PostWithRelations[]>(initialPosts);
   const [brandVoice, setBrandVoice] = useState<BrandVoice | null>(initialBrandVoice);
@@ -370,14 +372,14 @@ export function HomeClient({
         </div>
 
         {currentUser && (
-          <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-xs text-neutral-500">
+          <div className="sticky top-0 z-20 mb-4 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-xs text-neutral-500 shadow-sm">
             <span className="font-medium text-neutral-700">{currentUser.email}</span>
             <span>
               {quotaUsed}/{weeklyQuota} posts this week
             </span>
-            <span>Session tokens used: {displayTokens(sessionTokens) ?? 0}</span>
+            <span>Session tokens used: {displayTokens(sessionTokens, tokenMarkup) ?? 0}</span>
             <span>Lifetime tries: {lifetimeStats.tries}</span>
-            <span>Lifetime tokens: {displayTokens(lifetimeStats.tokens) ?? 0}</span>
+            <span>Lifetime tokens: {displayTokens(lifetimeStats.tokens, tokenMarkup) ?? 0}</span>
           </div>
         )}
 
@@ -663,7 +665,7 @@ export function HomeClient({
                       </button>
                       {activeAnalysis.image_tokens_used != null && (
                         <span className="text-xs text-neutral-400">
-                          Tokens used — image: {displayTokens(activeAnalysis.image_tokens_used)}
+                          Tokens used — image: {displayTokens(activeAnalysis.image_tokens_used, tokenMarkup)}
                         </span>
                       )}
                       {canEditActive && (
@@ -717,7 +719,7 @@ export function HomeClient({
             <p className="mt-2 text-xs text-neutral-400">
               {getWordCount(draftFinalText)} words · {getCharCount(draftFinalText)} characters
               {activeAnalysis?.rewrite_tokens_used != null && (
-                <> · Tokens used — text: {displayTokens(activeAnalysis.rewrite_tokens_used)}</>
+                <> · Tokens used — text: {displayTokens(activeAnalysis.rewrite_tokens_used, tokenMarkup)}</>
               )}
             </p>
 
@@ -787,7 +789,7 @@ export function HomeClient({
                       </button>
                       {activeAnalysis.selected_image_tokens_used != null && (
                         <span className="text-xs text-neutral-400">
-                          Tokens used — image: {displayTokens(activeAnalysis.selected_image_tokens_used)}
+                          Tokens used — image: {displayTokens(activeAnalysis.selected_image_tokens_used, tokenMarkup)}
                         </span>
                       )}
                     </div>
@@ -797,70 +799,6 @@ export function HomeClient({
             )}
           </section>
         )}
-
-        <section className="mt-10">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">
-            Post History
-          </h2>
-          {sortedPosts.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-neutral-300 p-6 text-center">
-              <EmptyStateIllustration />
-              <p className="text-sm text-neutral-400">No posts yet. Paste your first post above.</p>
-            </div>
-          ) : (
-            <ul className="space-y-3">
-              {sortedPosts.map((post) => {
-                const analysis = latestAnalysis(post);
-                const isMine = !!currentUser && post.user_id === currentUser.id;
-                return (
-                  <li
-                    key={post.id}
-                    className="flex items-start justify-between gap-4 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-neutral-900">
-                        {post.final_text || post.raw_text}
-                      </p>
-                      <p className="mt-1 truncate text-xs text-neutral-400">
-                        Original: {post.raw_text}
-                      </p>
-                      <div className="mt-2 flex items-center gap-2 text-xs text-neutral-400">
-                        <StatusBadge status={post.status} />
-                        {!isMine && (
-                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-neutral-400">demo</span>
-                        )}
-                        <span>{new Date(post.created_at).toLocaleString()}</span>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-2">
-                      <span
-                        className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${scoreColorClasses[scoreColor(analysis?.lead_gen_score)]}`}
-                      >
-                        {analysis?.lead_gen_score ?? "Scoring unavailable"}
-                      </span>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleView(post)}
-                          className="rounded-lg border border-neutral-300 px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
-                        >
-                          {isMine ? "View/Edit" : "View"}
-                        </button>
-                        {isMine && (
-                          <button
-                            onClick={() => setDeleteTarget(post)}
-                            className="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
 
         {currentUser && (
           <section className="mt-10 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
@@ -961,6 +899,70 @@ export function HomeClient({
               <p className="mt-2 text-sm text-red-600">Could not subscribe — please try again.</p>
             )}
           </div>
+        </section>
+
+        <section className="mt-10">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">
+            Post History
+          </h2>
+          {sortedPosts.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-neutral-300 p-6 text-center">
+              <EmptyStateIllustration />
+              <p className="text-sm text-neutral-400">No posts yet. Paste your first post above.</p>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {sortedPosts.map((post) => {
+                const analysis = latestAnalysis(post);
+                const isMine = !!currentUser && post.user_id === currentUser.id;
+                return (
+                  <li
+                    key={post.id}
+                    className="flex items-start justify-between gap-4 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-neutral-900">
+                        {post.final_text || post.raw_text}
+                      </p>
+                      <p className="mt-1 truncate text-xs text-neutral-400">
+                        Original: {post.raw_text}
+                      </p>
+                      <div className="mt-2 flex items-center gap-2 text-xs text-neutral-400">
+                        <StatusBadge status={post.status} />
+                        {!isMine && (
+                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-neutral-400">demo</span>
+                        )}
+                        <span>{new Date(post.created_at).toLocaleString()}</span>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <span
+                        className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${scoreColorClasses[scoreColor(analysis?.lead_gen_score)]}`}
+                      >
+                        {analysis?.lead_gen_score ?? "Scoring unavailable"}
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleView(post)}
+                          className="rounded-lg border border-neutral-300 px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                        >
+                          {isMine ? "View/Edit" : "View"}
+                        </button>
+                        {isMine && (
+                          <button
+                            onClick={() => setDeleteTarget(post)}
+                            className="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
       </div>
 
