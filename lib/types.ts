@@ -6,6 +6,7 @@ export type Post = {
   status: "draft" | "accepted" | "published";
   platform: string;
   target_char_count: number | null;
+  tone: string;
   created_at: string;
 };
 

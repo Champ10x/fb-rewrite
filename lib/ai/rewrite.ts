@@ -1,5 +1,6 @@
 import type { BrandVoice } from "@/lib/types";
 import { PLATFORM_GUIDANCE, platformLabel, type PlatformId } from "@/lib/platforms";
+import { TONE_GUIDANCE, type ToneId } from "@/lib/tones";
 
 export type RewriteResult = {
   rewritten_text: string;
@@ -19,6 +20,7 @@ export type GenerateRewriteOptions = {
   instructions?: string | null;
   platform?: string | null;
   targetCharCount?: number | null;
+  tone?: string | null;
 };
 
 const FOLLOW_UP_MIN_LEN = 70;
@@ -59,7 +61,7 @@ Then score the rewrite you produced against the six steps:
 
 Also write exactly ${FOLLOW_UP_COUNT} short follow-up posts to run in the days after the main post — teasers, reminders, or a different angle on the same offer. These are NOT mini-ads: do not include a call-to-action or contact method (no "DM us", "call now", "book today", links, etc.) — just a short, punchy, standalone thought that builds curiosity or reinforces the message. Each follow-up post is a strict requirement: it MUST be between ${FOLLOW_UP_MIN_LEN} and ${FOLLOW_UP_MAX_LEN} characters (never shorter than ${FOLLOW_UP_MIN_LEN}), and able to stand alone.
 
-Also write an image_prompt: one or two vivid sentences describing a photo or illustration to run alongside this specific post. The image must directly support and reinforce THIS post's message — the scene and subject should visually echo the pain point, offer, or outcome in the rewritten text, not be generic. If any people appear in the image, they must match the brand's target audience (age, life stage, cultural/regional context) described below — do not default to generic stock-photo demographics. Match the described color theme/mood if one is given. Do not include any text, words, letters, or logos in the image description.
+Also write an image_prompt: a detailed image-generation prompt (2-4 sentences) for a photo or illustration to run alongside this specific post. It must have a strong, scroll-stopping visual hook — an unexpected angle, a striking moment, or vivid emotion, not a flat stock-photo pose — and must directly support and reinforce THIS post's message: the scene and subject should visually echo the pain point, offer, or outcome in the rewritten text, not be generic. If any people appear in the image, they must match the brand's target audience (age, life stage, cultural/regional context) described below — do not default to generic stock-photo demographics. Match the described color theme/mood if one is given. Do not include any text, words, letters, or logos in the image description. This prompt will be shown to the user to review and edit before any image is generated, so make it concrete and specific enough to act on as-is.
 
 Respond with ONLY a JSON object, no markdown, matching exactly this shape:
 {"rewritten_text": string, "hook_score": number, "cta_score": number, "urgency_score": number, "lead_gen_score": number, "confidence": number, "rationale": string, "follow_up_posts": string[], "image_prompt": string}`;
@@ -74,8 +76,16 @@ function targetLengthGuide(targetCharCount: number | null | undefined): string {
   return `\n\nTarget length: aim for approximately ${targetCharCount} characters in rewritten_text — a soft target, prioritize clarity and completeness over hitting the exact count.`;
 }
 
-function brandVoiceGuide(brandVoice: BrandVoice | null | undefined): string {
+function toneGuide(tone: string | null | undefined): string {
+  if (!tone || tone === "brand-voice") return "";
+  const guidance = TONE_GUIDANCE[tone as Exclude<ToneId, "brand-voice">];
+  if (!guidance) return "";
+  return `\n\nOverride tone: ignore any voice/style guidance below (words, adjectives, keyword lists) and write in this specific tone instead — ${guidance} Still use the reader, proof, and contact-method inputs below exactly as given; only the voice and style are overridden.`;
+}
+
+function brandVoiceGuide(brandVoice: BrandVoice | null | undefined, tone: string | null | undefined): string {
   if (!brandVoice) return "";
+  const toneOverridden = !!tone && tone !== "brand-voice";
 
   // Step 1 (Reader) and step 2 (Tension) — use this instead of inventing a
   // generic audience or a made-up want/fear.
@@ -94,11 +104,15 @@ function brandVoiceGuide(brandVoice: BrandVoice | null | undefined): string {
   if (brandVoice.cta_style.length) askLines.push(`How this business asks for contact — step 5 (Risk): ${brandVoice.cta_style.join(", ")}`);
   if (brandVoice.cta_examples.length) askLines.push(`CTA examples to model — step 6 (The Ask): ${brandVoice.cta_examples.join(" | ")}`);
 
+  // Voice/style is exactly what a fixed tone selection overrides — skip it
+  // when the caller picked one, but keep caption length (not a tone choice).
   const voiceLines: string[] = [];
-  if (brandVoice.voice_keywords.length) voiceLines.push(`Voice: ${brandVoice.voice_keywords.join(", ")}`);
-  if (brandVoice.content_style.length) voiceLines.push(`Style: ${brandVoice.content_style.join(", ")}`);
-  if (brandVoice.words_to_use.length) voiceLines.push(`Prefer these words/phrases: ${brandVoice.words_to_use.join(", ")}`);
-  if (brandVoice.words_to_avoid.length) voiceLines.push(`Never use these words/phrases: ${brandVoice.words_to_avoid.join(", ")}`);
+  if (!toneOverridden) {
+    if (brandVoice.voice_keywords.length) voiceLines.push(`Voice: ${brandVoice.voice_keywords.join(", ")}`);
+    if (brandVoice.content_style.length) voiceLines.push(`Style: ${brandVoice.content_style.join(", ")}`);
+    if (brandVoice.words_to_use.length) voiceLines.push(`Prefer these words/phrases: ${brandVoice.words_to_use.join(", ")}`);
+    if (brandVoice.words_to_avoid.length) voiceLines.push(`Never use these words/phrases: ${brandVoice.words_to_avoid.join(", ")}`);
+  }
   if (brandVoice.caption_length_pref) voiceLines.push(`Caption length: ${brandVoice.caption_length_pref}`);
 
   const imageLines: string[] = [];
@@ -132,7 +146,8 @@ export async function generateRewrite(
     BASE_PROMPT +
     platformGuide(options.platform) +
     targetLengthGuide(options.targetCharCount) +
-    brandVoiceGuide(options.brandVoice);
+    toneGuide(options.tone) +
+    brandVoiceGuide(options.brandVoice, options.tone);
   const trimmedInstructions = options.instructions?.trim().slice(0, MAX_INSTRUCTIONS_LEN) || null;
 
   try {

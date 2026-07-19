@@ -50,6 +50,7 @@ function makePost(overrides: Partial<PostWithRelations>): PostWithRelations {
     status: "draft",
     platform: "facebook",
     target_char_count: null,
+    tone: "brand-voice",
     created_at: "2026-01-01T00:00:00Z",
     analyses: [],
     revisions: [],

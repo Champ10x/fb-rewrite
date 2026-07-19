@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateRewrite } from "@/lib/ai/rewrite";
-import { generateImage } from "@/lib/ai/image";
 import { writeAuditLog } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getWeekStart } from "@/lib/quota";
 import { isPlatformId } from "@/lib/platforms";
+import { isToneId } from "@/lib/tones";
 
 const MAX_LEN = 2000;
 const MAX_TARGET_CHAR_COUNT = 5000;
@@ -20,6 +20,7 @@ export async function POST(request: Request) {
   const rawText = typeof body?.raw_text === "string" ? body.raw_text.trim() : "";
   const force = body?.force === true;
   const platform = isPlatformId(body?.platform) ? body.platform : "facebook";
+  const tone = isToneId(body?.tone) ? body.tone : "brand-voice";
   const targetCharCount =
     typeof body?.target_char_count === "number" && body.target_char_count > 0 && body.target_char_count <= MAX_TARGET_CHAR_COUNT
       ? Math.round(body.target_char_count)
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
   const [{ data: post, error: insertError }, { data: brandVoice }] = await Promise.all([
     supabase
       .from("posts")
-      .insert({ raw_text: rawText, status: "draft", user_id: user.id, platform, target_char_count: targetCharCount })
+      .insert({ raw_text: rawText, status: "draft", user_id: user.id, platform, target_char_count: targetCharCount, tone })
       .select()
       .single(),
     supabase.from("brand_voices").select("*").eq("user_id", user.id).maybeSingle(),
@@ -92,25 +93,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await generateRewrite(rawText, { brandVoice, platform, targetCharCount });
-
-    let imageUrl: string | null = null;
-    let imageTokensUsed: number | null = null;
-    if (result.image_prompt) {
-      try {
-        const image = await generateImage(result.image_prompt);
-        const path = `${user.id}/${post.id}.png`;
-        const { error: uploadError } = await supabase.storage
-          .from("post-images")
-          .upload(path, Buffer.from(image.base64, "base64"), { contentType: "image/png", upsert: true });
-        if (!uploadError) {
-          imageUrl = supabase.storage.from("post-images").getPublicUrl(path).data.publicUrl;
-          imageTokensUsed = image.tokensUsed;
-        }
-      } catch (imgErr) {
-        console.error("image generation failed (non-fatal)", imgErr);
-      }
-    }
+    const result = await generateRewrite(rawText, { brandVoice, platform, targetCharCount, tone });
 
     const { data: analysis, error: analysisError } = await supabase
       .from("analyses")
@@ -139,10 +122,8 @@ export async function POST(request: Request) {
         rewritten_text_review_status: "unreviewed",
         rationale: result.rationale,
         follow_up_posts: result.follow_up_posts,
-        image_url: imageUrl,
         image_prompt: result.image_prompt || null,
         rewrite_tokens_used: result.tokens_used,
-        image_tokens_used: imageTokensUsed,
       })
       .select()
       .single();

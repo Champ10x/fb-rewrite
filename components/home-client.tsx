@@ -9,11 +9,14 @@ import { getWeekStart } from "@/lib/quota";
 import { displayTokens } from "@/lib/tokens";
 import { getCharCount, getWordCount } from "@/lib/text-stats";
 import { PLATFORMS, type PlatformId } from "@/lib/platforms";
+import { TONES, type ToneId } from "@/lib/tones";
 import { AuthHeader } from "@/components/auth-header";
 import { BrandVoiceWizard } from "@/components/brand-voice-wizard";
 import { Sidebar } from "@/components/sidebar";
 
 const MAX_LEN = 2000;
+const FACEBOOK_PAGE_URL = "https://www.facebook.com/patrick4freedom";
+const APP_URL = "https://fb-rewrite.vercel.app";
 
 export function HomeClient({
   initialPosts,
@@ -34,6 +37,7 @@ export function HomeClient({
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [rawText, setRawText] = useState("");
   const [platform, setPlatform] = useState<PlatformId>("facebook");
+  const [tone, setTone] = useState<ToneId>("brand-voice");
   const [targetCharCount, setTargetCharCount] = useState("");
   const [loadingRewrite, setLoadingRewrite] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
@@ -49,6 +53,12 @@ export function HomeClient({
   const [quotaRequestStatus, setQuotaRequestStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [selectingIndex, setSelectingIndex] = useState<number | null>(null);
   const [copiedImage, setCopiedImage] = useState(false);
+  const [sessionTokens, setSessionTokens] = useState(0);
+  const [imagePromptDraft, setImagePromptDraft] = useState("");
+  const [showImagePromptEditor, setShowImagePromptEditor] = useState(false);
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [subscribeEmail, setSubscribeEmail] = useState("");
+  const [subscribeStatus, setSubscribeStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   const sortedPosts = useMemo(() => sortPosts(posts), [posts]);
   const activePost = posts.find((p) => p.id === activePostId) ?? null;
@@ -89,6 +99,7 @@ export function HomeClient({
           raw_text: text,
           force,
           platform,
+          tone,
           target_char_count: targetCharCount.trim() ? Number(targetCharCount) : undefined,
         }),
       });
@@ -116,6 +127,11 @@ export function HomeClient({
       setSaveState("idle");
       setRawText("");
       setTargetCharCount("");
+      setImagePromptDraft(data.analysis?.image_prompt ?? "");
+      setShowImagePromptEditor(true);
+      if (data.analysis?.rewrite_tokens_used != null) {
+        setSessionTokens((prev) => prev + data.analysis.rewrite_tokens_used);
+      }
       if (data.error === "ai_failed") setRewriteError(data.message);
     } catch {
       setRewriteError("Rewrite failed — please try again.");
@@ -154,6 +170,44 @@ export function HomeClient({
     setRewriteError(null);
     setAuthNotice(null);
     setSaveState("idle");
+    const analysis = latestAnalysis(post);
+    setImagePromptDraft(analysis?.image_prompt ?? "");
+    setShowImagePromptEditor(!analysis?.image_url);
+  }
+
+  async function handleGenerateImage() {
+    if (!activePost || !canEditActive) return;
+    const prompt = imagePromptDraft.trim();
+    if (!prompt) return;
+    setGeneratingImage(true);
+    setRewriteError(null);
+    try {
+      const res = await fetch(`/api/posts/${activePost.id}/generate-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRewriteError(data.message ?? "Could not create image — please try again.");
+        return;
+      }
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === activePost.id
+            ? { ...p, analyses: p.analyses.map((a) => (a.id === data.analysis.id ? data.analysis : a)) }
+            : p,
+        ),
+      );
+      if (data.analysis?.image_tokens_used != null) {
+        setSessionTokens((prev) => prev + data.analysis.image_tokens_used);
+      }
+      setShowImagePromptEditor(false);
+    } catch {
+      setRewriteError("Could not create image — please try again.");
+    } finally {
+      setGeneratingImage(false);
+    }
   }
 
   async function handleSelectFollowUpImage(index: number, text: string) {
@@ -241,11 +295,43 @@ export function HomeClient({
     }
   }
 
+  async function handleSubscribe() {
+    const email = subscribeEmail.trim();
+    if (!email) return;
+    setSubscribeStatus("sending");
+    try {
+      const res = await fetch("/api/newsletter-subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      setSubscribeStatus(res.ok ? "sent" : "error");
+      if (res.ok) setSubscribeEmail("");
+    } catch {
+      setSubscribeStatus("error");
+    }
+  }
+
+  function handleShareOnFacebook() {
+    const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(APP_URL)}`;
+    window.open(url, "_blank", "noopener,noreferrer,width=600,height=500");
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-[#F7F1E3] md:flex-row">
       <Sidebar isAdmin={isAdmin} />
       <main className="flex-1 pb-24">
       <div className="mx-auto max-w-3xl px-4 pt-12 sm:px-6">
+        {currentUser && (
+          <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-xs text-neutral-500">
+            <span className="font-medium text-neutral-700">{currentUser.email}</span>
+            <span>
+              {quotaUsed}/{weeklyQuota} posts this week
+            </span>
+            <span>Session tokens used: {displayTokens(sessionTokens) ?? 0}</span>
+          </div>
+        )}
+
         <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-neutral-500">
@@ -253,11 +339,6 @@ export function HomeClient({
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-3">
-            {currentUser && (
-              <span className="rounded-full border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-600">
-                {quotaUsed}/{weeklyQuota} posts this week
-              </span>
-            )}
             {currentUser && (
               <button
                 onClick={() => setShowWizard(true)}
@@ -363,6 +444,23 @@ export function HomeClient({
                     {PLATFORMS.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="tone-select" className="mb-1 block text-xs font-medium text-neutral-500">
+                    Tone
+                  </label>
+                  <select
+                    id="tone-select"
+                    value={tone}
+                    onChange={(e) => setTone(e.target.value as ToneId)}
+                    className="rounded-lg border border-neutral-300 px-2 py-1.5 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                  >
+                    {TONES.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
                       </option>
                     ))}
                   </select>
@@ -475,26 +573,88 @@ export function HomeClient({
               className="w-full resize-y rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500 disabled:bg-neutral-50 disabled:text-neutral-400"
             />
 
-            {activeAnalysis?.image_url && (
+            {activeAnalysis && (
               <div className="mt-3">
-                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-400">Suggested image</p>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={activeAnalysis.image_url}
-                  alt="AI-generated image relevant to this post"
-                  className="w-full rounded-lg border border-neutral-200"
-                />
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-400">Image</p>
+
+                {activeAnalysis.image_url && !showImagePromptEditor ? (
+                  <div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={activeAnalysis.image_url}
+                      alt="AI-generated image relevant to this post"
+                      className="w-full rounded-lg border border-neutral-200"
+                    />
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={() => handleCopyImage(activeAnalysis.image_url!)}
+                        className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      >
+                        {copiedImage ? "Copied" : "Copy image"}
+                      </button>
+                      <button
+                        onClick={() => handleDownloadImage(activeAnalysis.image_url!, `fb-rewrite-${activePost.id}.png`)}
+                        className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      >
+                        Download
+                      </button>
+                      {activeAnalysis.image_tokens_used != null && (
+                        <span className="text-xs text-neutral-400">
+                          Tokens used — image: {displayTokens(activeAnalysis.image_tokens_used)}
+                        </span>
+                      )}
+                      {canEditActive && (
+                        <button
+                          onClick={() => setShowImagePromptEditor(true)}
+                          className="text-xs font-medium text-neutral-500 underline-offset-2 hover:underline"
+                        >
+                          Edit prompt &amp; regenerate
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  canEditActive && (
+                    <div>
+                      <label htmlFor="image-prompt" className="mb-1 block text-xs text-neutral-500">
+                        Image prompt — edit before generating
+                      </label>
+                      <textarea
+                        id="image-prompt"
+                        rows={3}
+                        value={imagePromptDraft}
+                        onChange={(e) => setImagePromptDraft(e.target.value)}
+                        placeholder="Describe the image to generate for this post…"
+                        className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                      />
+                      <div className="mt-2 flex items-center gap-3">
+                        <button
+                          onClick={handleGenerateImage}
+                          disabled={generatingImage || !imagePromptDraft.trim()}
+                          className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {generatingImage && <Spinner />}
+                          {generatingImage ? "Generating…" : "Generate Image"}
+                        </button>
+                        {activeAnalysis.image_url && (
+                          <button
+                            onClick={() => setShowImagePromptEditor(false)}
+                            className="text-xs font-medium text-neutral-500 underline-offset-2 hover:underline"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                )}
               </div>
             )}
 
             <p className="mt-2 text-xs text-neutral-400">
               {getWordCount(draftFinalText)} words · {getCharCount(draftFinalText)} characters
-              {(activeAnalysis?.rewrite_tokens_used != null || activeAnalysis?.image_tokens_used != null) && (
-                <>
-                  {" "}
-                  · Tokens used — text: {displayTokens(activeAnalysis?.rewrite_tokens_used) ?? "—"} · image:{" "}
-                  {displayTokens(activeAnalysis?.image_tokens_used) ?? "—"}
-                </>
+              {activeAnalysis?.rewrite_tokens_used != null && (
+                <> · Tokens used — text: {displayTokens(activeAnalysis.rewrite_tokens_used)}</>
               )}
             </p>
 
@@ -523,6 +683,9 @@ export function HomeClient({
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">
                   5 follow-up posts — select one to overlay on the image
                 </p>
+                {canEditActive && !activeAnalysis.image_url && (
+                  <p className="mb-2 text-xs text-amber-600">Generate an image above first to enable text overlays.</p>
+                )}
                 <ul className="space-y-2">
                   {activeAnalysis.follow_up_posts.map((fp, i) => (
                     <FollowUpItem
@@ -530,7 +693,7 @@ export function HomeClient({
                       text={fp}
                       selected={activeAnalysis.selected_image_text === fp}
                       selecting={selectingIndex === i}
-                      canSelect={canEditActive}
+                      canSelect={canEditActive && !!activeAnalysis.image_url}
                       onSelect={() => handleSelectFollowUpImage(i, fp)}
                     />
                   ))}
@@ -634,6 +797,60 @@ export function HomeClient({
               })}
             </ul>
           )}
+        </section>
+
+        <section className="mt-10 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-neutral-900">Like fb-rewrite? Spread the word</p>
+              <p className="mt-0.5 text-sm text-neutral-500">Share it on Facebook or follow along for updates.</p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <button
+                onClick={handleShareOnFacebook}
+                className="rounded-lg bg-[#1877F2] px-4 py-2 text-sm font-medium text-white hover:bg-[#1465D8]"
+              >
+                Share on Facebook
+              </button>
+              <a
+                href={FACEBOOK_PAGE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Follow on Facebook
+              </a>
+            </div>
+          </div>
+
+          <div className="mt-5 border-t border-neutral-200 pt-4">
+            <p className="text-sm font-medium text-neutral-900">Get notified about new apps and developments</p>
+            {subscribeStatus === "sent" ? (
+              <p className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                Thanks — you're subscribed.
+              </p>
+            ) : (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <input
+                  type="email"
+                  value={subscribeEmail}
+                  onChange={(e) => setSubscribeEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="min-w-0 flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                />
+                <button
+                  onClick={handleSubscribe}
+                  disabled={subscribeStatus === "sending" || !subscribeEmail.trim()}
+                  className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {subscribeStatus === "sending" ? "Subscribing…" : "Subscribe"}
+                </button>
+              </div>
+            )}
+            {subscribeStatus === "error" && (
+              <p className="mt-2 text-sm text-red-600">Could not subscribe — please try again.</p>
+            )}
+          </div>
         </section>
       </div>
 
