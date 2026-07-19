@@ -21,6 +21,7 @@ export type GenerateRewriteOptions = {
   platform?: string | null;
   targetCharCount?: number | null;
   tone?: string | null;
+  keyPoint?: string | null;
 };
 
 const FOLLOW_UP_MIN_LEN = 70;
@@ -74,6 +75,14 @@ function platformGuide(platform: string | null | undefined): string {
 function targetLengthGuide(targetCharCount: number | null | undefined): string {
   if (!targetCharCount || targetCharCount <= 0) return "";
   return `\n\nTarget length: aim for approximately ${targetCharCount} characters in rewritten_text — a soft target, prioritize clarity and completeness over hitting the exact count.`;
+}
+
+const MAX_KEY_POINT_LEN = 300;
+
+function keyPointGuide(keyPoint: string | null | undefined): string {
+  const trimmed = keyPoint?.trim().slice(0, MAX_KEY_POINT_LEN);
+  if (!trimmed) return "";
+  return `\n\nRequired key point: the rewrite MUST include this point or angle somewhere in the content. The exact wording does not need to match — capture the idea so a reader would recognize it's there: "${trimmed}"`;
 }
 
 function toneGuide(tone: string | null | undefined): string {
@@ -146,6 +155,7 @@ export async function generateRewrite(
     BASE_PROMPT +
     platformGuide(options.platform) +
     targetLengthGuide(options.targetCharCount) +
+    keyPointGuide(options.keyPoint) +
     toneGuide(options.tone) +
     brandVoiceGuide(options.brandVoice, options.tone);
   const trimmedInstructions = options.instructions?.trim().slice(0, MAX_INSTRUCTIONS_LEN) || null;

@@ -11,13 +11,24 @@ export async function POST() {
   const { user, response } = await requireAdmin(supabase);
   if (!user) return response;
 
-  const { data: profiles, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const [{ data: profiles, error }, { data: posts }] = await Promise.all([
+    supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+    supabase.from("posts").select("user_id, analyses(rewrite_tokens_used, image_tokens_used)"),
+  ]);
 
   if (error) {
     return NextResponse.json({ error: "db_error", message: "Could not load the user database" }, { status: 500 });
+  }
+
+  const lifetimeByUser = new Map<string, { tries: number; tokens: number }>();
+  for (const post of posts ?? []) {
+    if (!post.user_id) continue;
+    const entry = lifetimeByUser.get(post.user_id) ?? { tries: 0, tokens: 0 };
+    entry.tries += 1;
+    for (const analysis of post.analyses ?? []) {
+      entry.tokens += (analysis.rewrite_tokens_used ?? 0) + (analysis.image_tokens_used ?? 0);
+    }
+    lifetimeByUser.set(post.user_id, entry);
   }
 
   const workbook = new ExcelJS.Workbook();
@@ -32,11 +43,14 @@ export async function POST() {
     { header: "Browser", key: "browser", width: 30 },
     { header: "Referral", key: "referral", width: 20 },
     { header: "Admin", key: "is_admin", width: 10 },
+    { header: "Lifetime tries", key: "lifetime_tries", width: 14 },
+    { header: "Lifetime tokens", key: "lifetime_tokens", width: 16 },
     { header: "User ID", key: "id", width: 38 },
   ];
   sheet.getRow(1).font = { bold: true };
   for (const profile of profiles ?? []) {
-    sheet.addRow(profile);
+    const lifetime = lifetimeByUser.get(profile.id) ?? { tries: 0, tokens: 0 };
+    sheet.addRow({ ...profile, lifetime_tries: lifetime.tries, lifetime_tokens: lifetime.tokens });
   }
 
   const buffer = await workbook.xlsx.writeBuffer();

@@ -39,6 +39,7 @@ export function HomeClient({
   const [platform, setPlatform] = useState<PlatformId>("facebook");
   const [tone, setTone] = useState<ToneId>("brand-voice");
   const [targetCharCount, setTargetCharCount] = useState("");
+  const [keyPoint, setKeyPoint] = useState("");
   const [loadingRewrite, setLoadingRewrite] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [draftFinalText, setDraftFinalText] = useState("");
@@ -54,6 +55,10 @@ export function HomeClient({
   const [selectingIndex, setSelectingIndex] = useState<number | null>(null);
   const [copiedImage, setCopiedImage] = useState(false);
   const [sessionTokens, setSessionTokens] = useState(0);
+  const [sessionTries, setSessionTries] = useState(0);
+  const [feedbackRating, setFeedbackRating] = useState<number | null>(null);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [imagePromptDraft, setImagePromptDraft] = useState("");
   const [showImagePromptEditor, setShowImagePromptEditor] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
@@ -71,6 +76,16 @@ export function HomeClient({
     return posts.filter((p) => p.user_id === currentUser.id && new Date(p.created_at) >= weekStart).length;
   }, [posts, currentUser]);
   const quotaExceeded = !!currentUser && quotaUsed >= weeklyQuota;
+
+  const lifetimeStats = useMemo(() => {
+    if (!currentUser) return { tries: 0, tokens: 0 };
+    const mine = posts.filter((p) => p.user_id === currentUser.id);
+    const tokens = mine.reduce((sum, p) => {
+      const a = latestAnalysis(p);
+      return sum + (a?.rewrite_tokens_used ?? 0) + (a?.image_tokens_used ?? 0);
+    }, 0);
+    return { tries: mine.length, tokens };
+  }, [posts, currentUser]);
 
   async function handleRewrite(force = false) {
     if (!currentUser) {
@@ -101,6 +116,7 @@ export function HomeClient({
           platform,
           tone,
           target_char_count: targetCharCount.trim() ? Number(targetCharCount) : undefined,
+          key_point: keyPoint.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -127,8 +143,10 @@ export function HomeClient({
       setSaveState("idle");
       setRawText("");
       setTargetCharCount("");
+      setKeyPoint("");
       setImagePromptDraft(data.analysis?.image_prompt ?? "");
       setShowImagePromptEditor(true);
+      setSessionTries((prev) => prev + 1);
       if (data.analysis?.rewrite_tokens_used != null) {
         setSessionTokens((prev) => prev + data.analysis.rewrite_tokens_used);
       }
@@ -295,6 +313,26 @@ export function HomeClient({
     }
   }
 
+  async function handleSubmitFeedback() {
+    if (feedbackRating == null) return;
+    setFeedbackStatus("sending");
+    try {
+      const res = await fetch("/api/session-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rating: feedbackRating,
+          feedback: feedbackText.trim() || undefined,
+          session_tokens_used: sessionTokens,
+          session_tries: sessionTries,
+        }),
+      });
+      setFeedbackStatus(res.ok ? "sent" : "error");
+    } catch {
+      setFeedbackStatus("error");
+    }
+  }
+
   async function handleSubscribe() {
     const email = subscribeEmail.trim();
     if (!email) return;
@@ -338,6 +376,8 @@ export function HomeClient({
               {quotaUsed}/{weeklyQuota} posts this week
             </span>
             <span>Session tokens used: {displayTokens(sessionTokens) ?? 0}</span>
+            <span>Lifetime tries: {lifetimeStats.tries}</span>
+            <span>Lifetime tokens: {displayTokens(lifetimeStats.tokens) ?? 0}</span>
           </div>
         )}
 
@@ -489,6 +529,20 @@ export function HomeClient({
                     className="w-32 rounded-lg border border-neutral-300 px-2 py-1.5 text-sm text-neutral-900 outline-none focus:border-neutral-500"
                   />
                 </div>
+              </div>
+
+              <div className="mt-3">
+                <label htmlFor="key-point" className="mb-1 block text-xs font-medium text-neutral-500">
+                  Key point / angle to include (optional)
+                </label>
+                <textarea
+                  id="key-point"
+                  rows={2}
+                  value={keyPoint}
+                  onChange={(e) => setKeyPoint(e.target.value)}
+                  placeholder="e.g. mention we're now open on weekends — doesn't need to be word-for-word"
+                  className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                />
               </div>
 
               <button
@@ -807,6 +861,53 @@ export function HomeClient({
             </ul>
           )}
         </section>
+
+        {currentUser && (
+          <section className="mt-10 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+            <p className="text-sm font-medium text-neutral-900">How was this session?</p>
+            {feedbackStatus === "sent" ? (
+              <p className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                Thanks for the feedback!
+              </p>
+            ) : (
+              <>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setFeedbackRating(n)}
+                      className={`h-8 w-8 rounded-lg border text-sm font-medium transition ${
+                        feedbackRating === n
+                          ? "border-neutral-900 bg-neutral-900 text-white"
+                          : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-xs text-neutral-400">1 = not satisfied, 10 = extremely satisfied</p>
+                <textarea
+                  rows={2}
+                  value={feedbackText}
+                  onChange={(e) => setFeedbackText(e.target.value)}
+                  placeholder="Any comments on this session? (optional)"
+                  className="mt-3 w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                />
+                <button
+                  onClick={handleSubmitFeedback}
+                  disabled={feedbackStatus === "sending" || feedbackRating == null}
+                  className="mt-3 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {feedbackStatus === "sending" ? "Sending…" : "Submit feedback"}
+                </button>
+                {feedbackStatus === "error" && (
+                  <p className="mt-2 text-sm text-red-600">Could not send feedback — please try again.</p>
+                )}
+              </>
+            )}
+          </section>
+        )}
 
         <section className="mt-10 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-4">

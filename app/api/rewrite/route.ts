@@ -10,6 +10,7 @@ import { isToneId } from "@/lib/tones";
 
 const MAX_LEN = 2000;
 const MAX_TARGET_CHAR_COUNT = 5000;
+const MAX_KEY_POINT_LEN = 300;
 
 function normalize(text: string) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -25,6 +26,8 @@ export async function POST(request: Request) {
     typeof body?.target_char_count === "number" && body.target_char_count > 0 && body.target_char_count <= MAX_TARGET_CHAR_COUNT
       ? Math.round(body.target_char_count)
       : null;
+  const keyPoint =
+    typeof body?.key_point === "string" && body.key_point.trim() ? body.key_point.trim().slice(0, MAX_KEY_POINT_LEN) : null;
 
   if (!rawText) {
     return NextResponse.json({ error: "empty_text", message: "Please paste a post first" }, { status: 400 });
@@ -82,7 +85,15 @@ export async function POST(request: Request) {
   const [{ data: post, error: insertError }, { data: brandVoice }] = await Promise.all([
     supabase
       .from("posts")
-      .insert({ raw_text: rawText, status: "draft", user_id: user.id, platform, target_char_count: targetCharCount, tone })
+      .insert({
+        raw_text: rawText,
+        status: "draft",
+        user_id: user.id,
+        platform,
+        target_char_count: targetCharCount,
+        tone,
+        key_point: keyPoint,
+      })
       .select()
       .single(),
     supabase.from("brand_voices").select("*").eq("user_id", user.id).maybeSingle(),
@@ -93,7 +104,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await generateRewrite(rawText, { brandVoice, platform, targetCharCount, tone });
+    const result = await generateRewrite(rawText, { brandVoice, platform, targetCharCount, tone, keyPoint });
 
     const { data: analysis, error: analysisError } = await supabase
       .from("analyses")

@@ -7,6 +7,7 @@ export type Post = {
   platform: string;
   target_char_count: number | null;
   tone: string;
+  key_point: string | null;
   created_at: string;
 };
 
@@ -122,4 +123,14 @@ export type AppSettings = {
   id: number;
   default_weekly_credit_allocation: number;
   updated_at: string;
+};
+
+export type SessionFeedback = {
+  id: string;
+  user_id: string;
+  feedback: string | null;
+  rating: number;
+  session_tokens_used: number | null;
+  session_tries: number | null;
+  created_at: string;
 };

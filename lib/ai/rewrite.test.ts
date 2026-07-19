@@ -227,3 +227,30 @@ describe("generateRewrite — platform + target length guidance", () => {
     expect(systemMessage).not.toContain("Target length");
   });
 });
+
+describe("generateRewrite — key point guidance", () => {
+  it("includes the key point as a required inclusion when given", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(okFetchResponse(mockOpenAiResponse({})));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateRewrite("some raw post", { keyPoint: "we're now open weekends" });
+
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const systemMessage = requestBody.messages[0].content as string;
+    expect(systemMessage).toContain("Required key point");
+    expect(systemMessage).toContain("we're now open weekends");
+  });
+
+  it("omits key point guidance when not given", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(okFetchResponse(mockOpenAiResponse({})));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateRewrite("some raw post");
+
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const systemMessage = requestBody.messages[0].content as string;
+    expect(systemMessage).not.toContain("Required key point");
+  });
+});
