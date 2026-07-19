@@ -9,6 +9,7 @@ export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
   const links = [
     { href: "/", label: "Home" },
     { href: "/audit", label: "Activity Log" },
+    { href: "/welcome", label: "Learn more" },
     ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
   ];
 
