@@ -1,20 +1,30 @@
 import nodemailer from "nodemailer";
 
+export type EmailAttachment = {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+};
+
 /**
  * Sends a notification email using SMTP credentials from env vars. Silently
- * no-ops if SMTP isn't configured — this must never block the caller's main
- * flow (e.g. saving a quota request).
+ * no-ops (returns false) if SMTP isn't configured — callers whose main flow
+ * doesn't depend on the email being sent should ignore the return value.
  */
-export async function sendNotificationEmail(subject: string, text: string) {
+export async function sendNotificationEmail(
+  subject: string,
+  text: string,
+  options?: { to?: string; attachments?: EmailAttachment[] },
+): Promise<boolean> {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const to = process.env.ADMIN_NOTIFY_EMAIL || user;
+  const to = options?.to || process.env.ADMIN_NOTIFY_EMAIL || user;
 
   if (!host || !port || !user || !pass || !to) {
     console.warn("sendNotificationEmail skipped — SMTP env vars not configured");
-    return;
+    return false;
   }
 
   try {
@@ -30,8 +40,11 @@ export async function sendNotificationEmail(subject: string, text: string) {
       to,
       subject,
       text,
+      attachments: options?.attachments,
     });
+    return true;
   } catch (err) {
     console.error("sendNotificationEmail failed (non-fatal)", err);
+    return false;
   }
 }

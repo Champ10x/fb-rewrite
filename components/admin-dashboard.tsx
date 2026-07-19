@@ -25,6 +25,8 @@ export function AdminDashboard({
   const [savingId, setSavingId] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set());
+  const [exportStatus, setExportStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const emailFor = (userId: string | null) => profiles.find((p) => p.id === userId)?.email ?? userId ?? "—";
 
@@ -60,12 +62,47 @@ export function AdminDashboard({
     }
   }
 
+  async function handleExportUsers() {
+    setExportStatus("sending");
+    setExportError(null);
+    try {
+      const res = await fetch("/api/admin/export-users", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setExportStatus("error");
+        setExportError(data.message ?? "Could not export the user database");
+        return;
+      }
+      setExportStatus("sent");
+      setTimeout(() => setExportStatus("idle"), 3000);
+    } catch {
+      setExportStatus("error");
+      setExportError("Could not export the user database — check your connection");
+    }
+  }
+
   return (
     <div>
         <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">
-            Users ({profiles.length})
-          </h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">
+              Users ({profiles.length})
+            </h2>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleExportUsers}
+                disabled={exportStatus === "sending"}
+                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {exportStatus === "sending"
+                  ? "Exporting…"
+                  : exportStatus === "sent"
+                    ? "Sent to patrick@idealchamp.com"
+                    : "Download user database"}
+              </button>
+              {exportStatus === "error" && <span className="text-xs text-red-600">{exportError}</span>}
+            </div>
+          </div>
           <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white shadow-sm">
             <table className="w-full min-w-[1100px] text-left text-sm">
               <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-400">
