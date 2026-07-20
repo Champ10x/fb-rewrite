@@ -1,22 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { Profile, SessionFeedback } from "@/lib/types";
+import type { UsageLogRow } from "@/lib/usage-log";
 import { displayTokens } from "@/lib/tokens";
 
-export function AdminUsageLog({
-  entries,
-  profiles,
-  tokenMarkup,
-}: {
-  entries: SessionFeedback[];
-  profiles: Pick<Profile, "id" | "email">[];
-  tokenMarkup: number;
-}) {
+export function AdminUsageLog({ rows, tokenMarkup }: { rows: UsageLogRow[]; tokenMarkup: number }) {
   const [exportStatus, setExportStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [exportError, setExportError] = useState<string | null>(null);
-
-  const emailFor = (userId: string) => profiles.find((p) => p.id === userId)?.email ?? userId;
 
   async function handleExport() {
     setExportStatus("sending");
@@ -37,15 +27,16 @@ export function AdminUsageLog({
     }
   }
 
-  const avgRating = entries.length
-    ? (entries.reduce((sum, e) => sum + e.rating, 0) / entries.length).toFixed(1)
+  const rated = rows.filter((r) => r.latestRating != null);
+  const avgRating = rated.length
+    ? (rated.reduce((sum, r) => sum + (r.latestRating ?? 0), 0) / rated.length).toFixed(1)
     : "—";
 
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">
-          Usage log ({entries.length}) — avg rating {avgRating}/10
+          Usage log ({rows.length} users, {rated.length} rated) — avg rating {avgRating}/10
         </h2>
         <div className="flex items-center gap-2">
           <button
@@ -63,49 +54,52 @@ export function AdminUsageLog({
         </div>
       </div>
 
-      {entries.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="rounded-lg border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-400">
-          No feedback submitted yet.
+          No users yet.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white shadow-sm">
-          <table className="w-full min-w-[900px] text-left text-sm">
+          <table className="w-full min-w-[1000px] text-left text-sm">
             <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-400">
               <tr>
-                <th className="px-4 py-2 font-medium">When</th>
                 <th className="px-4 py-2 font-medium">User</th>
-                <th className="px-4 py-2 font-medium">Rating</th>
-                <th className="px-4 py-2 font-medium">Feedback</th>
-                <th className="px-4 py-2 font-medium">Session tries</th>
-                <th className="px-4 py-2 font-medium">Session tokens</th>
+                <th className="px-4 py-2 font-medium">Date joined</th>
+                <th className="px-4 py-2 font-medium">Lifetime tries</th>
+                <th className="px-4 py-2 font-medium">Lifetime tokens</th>
+                <th className="px-4 py-2 font-medium">Latest rating</th>
+                <th className="px-4 py-2 font-medium">Latest feedback</th>
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => (
-                <tr key={entry.id} className="border-b border-neutral-100 align-top last:border-0">
+              {rows.map((row) => (
+                <tr key={row.userId} className="border-b border-neutral-100 align-top last:border-0">
+                  <td className="px-4 py-2 text-neutral-700">{row.email}</td>
                   <td className="whitespace-nowrap px-4 py-2 text-neutral-500">
-                    {new Date(entry.created_at).toLocaleString()}
+                    {row.joinedAt ? new Date(row.joinedAt).toLocaleDateString() : "—"}
                   </td>
-                  <td className="px-4 py-2 text-neutral-500">{emailFor(entry.user_id)}</td>
+                  <td className="px-4 py-2 text-neutral-500">{row.lifetimeTries}</td>
+                  <td className="px-4 py-2 text-neutral-500">{displayTokens(row.lifetimeTokens, tokenMarkup)}</td>
                   <td className="px-4 py-2">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        entry.rating >= 8
-                          ? "bg-emerald-100 text-emerald-700"
-                          : entry.rating >= 5
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {entry.rating}/10
-                    </span>
+                    {row.latestRating == null ? (
+                      <span className="text-neutral-400">—</span>
+                    ) : (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          row.latestRating >= 8
+                            ? "bg-emerald-100 text-emerald-700"
+                            : row.latestRating >= 5
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-red-100 text-red-700"
+                        }`}
+                      >
+                        {row.latestRating}/10
+                        {row.feedbackCount > 1 ? ` (${row.feedbackCount}x)` : ""}
+                      </span>
+                    )}
                   </td>
                   <td className="max-w-xs whitespace-pre-wrap break-words px-4 py-2 text-neutral-600">
-                    {entry.feedback ?? "—"}
-                  </td>
-                  <td className="px-4 py-2 text-neutral-500">{entry.session_tries ?? "—"}</td>
-                  <td className="px-4 py-2 text-neutral-500">
-                    {entry.session_tokens_used != null ? displayTokens(entry.session_tokens_used, tokenMarkup) : "—"}
+                    {row.latestFeedback ?? "—"}
                   </td>
                 </tr>
               ))}

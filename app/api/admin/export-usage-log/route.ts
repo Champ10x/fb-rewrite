@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { sendNotificationEmail } from "@/lib/email";
 import { displayTokens, DEFAULT_TOKEN_DISPLAY_MARKUP } from "@/lib/tokens";
+import { buildUsageLogRows } from "@/lib/usage-log";
 
 const RECIPIENT = "patrick@idealchamp.com";
 
@@ -12,38 +13,35 @@ export async function POST() {
   const { user, response } = await requireAdmin(supabase);
   if (!user) return response;
 
-  const [{ data: entries, error }, { data: profiles }, { data: appSettings }] = await Promise.all([
-    supabase.from("session_feedback").select("*").order("created_at", { ascending: false }),
-    supabase.from("profiles").select("id, email"),
+  const [rows, { data: appSettings }] = await Promise.all([
+    buildUsageLogRows(supabase),
     supabase.from("app_settings").select("token_display_markup").eq("id", 1).maybeSingle(),
   ]);
   const tokenMarkup = appSettings?.token_display_markup ?? DEFAULT_TOKEN_DISPLAY_MARKUP;
 
-  if (error) {
-    return NextResponse.json({ error: "db_error", message: "Could not load the usage log" }, { status: 500 });
-  }
-
-  const emailFor = (userId: string) => profiles?.find((p) => p.id === userId)?.email ?? userId;
-
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Usage Log");
   sheet.columns = [
-    { header: "When", key: "created_at", width: 20 },
     { header: "User", key: "email", width: 30 },
-    { header: "Rating (1-10)", key: "rating", width: 14 },
-    { header: "Feedback", key: "feedback", width: 50 },
-    { header: "Session tries", key: "session_tries", width: 14 },
-    { header: "Session tokens", key: "session_tokens_used", width: 16 },
+    { header: "Date joined", key: "joined_at", width: 20 },
+    { header: "Lifetime tries", key: "lifetime_tries", width: 14 },
+    { header: "Lifetime tokens", key: "lifetime_tokens", width: 16 },
+    { header: "Times rated", key: "feedback_count", width: 12 },
+    { header: "Latest rating (1-10)", key: "latest_rating", width: 16 },
+    { header: "Latest feedback", key: "latest_feedback", width: 50 },
+    { header: "Latest feedback at", key: "latest_feedback_at", width: 20 },
   ];
   sheet.getRow(1).font = { bold: true };
-  for (const entry of entries ?? []) {
+  for (const row of rows) {
     sheet.addRow({
-      created_at: entry.created_at,
-      email: emailFor(entry.user_id),
-      rating: entry.rating,
-      feedback: entry.feedback ?? "",
-      session_tries: entry.session_tries ?? "",
-      session_tokens_used: entry.session_tokens_used != null ? displayTokens(entry.session_tokens_used, tokenMarkup) : "",
+      email: row.email,
+      joined_at: row.joinedAt,
+      lifetime_tries: row.lifetimeTries,
+      lifetime_tokens: displayTokens(row.lifetimeTokens, tokenMarkup),
+      feedback_count: row.feedbackCount,
+      latest_rating: row.latestRating ?? "",
+      latest_feedback: row.latestFeedback ?? "",
+      latest_feedback_at: row.latestFeedbackAt ?? "",
     });
   }
 
@@ -52,7 +50,7 @@ export async function POST() {
 
   const sent = await sendNotificationEmail(
     "fb-rewrite: usage log export",
-    `Attached: the full usage log export (${entries?.length ?? 0} entries) as of ${new Date().toLocaleString()}.`,
+    `Attached: the full usage log export (${rows.length} users) as of ${new Date().toLocaleString()}.`,
     {
       to: RECIPIENT,
       attachments: [
@@ -72,5 +70,5 @@ export async function POST() {
     );
   }
 
-  return NextResponse.json({ ok: true, count: entries?.length ?? 0, sentTo: RECIPIENT });
+  return NextResponse.json({ ok: true, count: rows.length, sentTo: RECIPIENT });
 }
