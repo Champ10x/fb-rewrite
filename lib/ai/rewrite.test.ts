@@ -1,13 +1,34 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateRewrite } from "./rewrite";
 
-function mockOpenAiResponse(body: Record<string, unknown>) {
+function makeScoreSet(overrides: Record<string, number> = {}) {
   return {
-    rewritten_text: "rewritten",
     hook_score: 8,
     cta_score: 7,
     urgency_score: 6,
+    audience_score: 7,
+    pain_score: 7,
+    solution_score: 7,
+    viral_score: 6,
     lead_gen_score: 80,
+    ...overrides,
+  };
+}
+
+function mockOpenAiResponse(body: Record<string, unknown>) {
+  return {
+    rewritten_text: "rewritten",
+    before: makeScoreSet({
+      hook_score: 4,
+      cta_score: 3,
+      urgency_score: 2,
+      audience_score: 3,
+      pain_score: 3,
+      solution_score: 3,
+      viral_score: 3,
+      lead_gen_score: 30,
+    }),
+    after: makeScoreSet(),
     confidence: 0.9,
     rationale: "good",
     ...body,
@@ -225,6 +246,75 @@ describe("generateRewrite — platform + target length guidance", () => {
     const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
     const systemMessage = requestBody.messages[0].content as string;
     expect(systemMessage).not.toContain("Target length");
+  });
+});
+
+describe("generateRewrite — before/after scoring", () => {
+  it("returns both before and after score sets across all seven dimensions", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(okFetchResponse(mockOpenAiResponse({})));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateRewrite("some raw post");
+
+    expect(result.before).toEqual(
+      makeScoreSet({
+        hook_score: 4,
+        cta_score: 3,
+        urgency_score: 2,
+        audience_score: 3,
+        pain_score: 3,
+        solution_score: 3,
+        viral_score: 3,
+        lead_gen_score: 30,
+      }),
+    );
+    expect(result.after).toEqual(makeScoreSet());
+  });
+
+  it("throws if the before or after score set is missing a dimension", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(
+      okFetchResponse(
+        mockOpenAiResponse({
+          after: { hook_score: 8, cta_score: 7 }, // missing the rest
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(generateRewrite("some raw post")).rejects.toThrow();
+  });
+
+  it("caps lead_gen_score at 100 for both before and after", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(
+      okFetchResponse(
+        mockOpenAiResponse({
+          before: makeScoreSet({ lead_gen_score: 140 }),
+          after: makeScoreSet({ lead_gen_score: 150 }),
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await generateRewrite("some raw post");
+
+    expect(result.before.lead_gen_score).toBe(100);
+    expect(result.after.lead_gen_score).toBe(100);
+  });
+
+  it("includes viral-score guidance that disclaims live trend data", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(okFetchResponse(mockOpenAiResponse({})));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateRewrite("some raw post");
+
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const systemMessage = requestBody.messages[0].content as string;
+    expect(systemMessage).toContain("viral_score");
+    expect(systemMessage).toContain("NOT a live trends lookup");
   });
 });
 

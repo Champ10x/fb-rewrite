@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { BrandVoice, CurrentUser, PostWithRelations } from "@/lib/types";
+import type { Analysis, BrandVoice, CurrentUser, PostWithRelations } from "@/lib/types";
 import { latestAnalysis, sortPosts } from "@/lib/posts";
 import { scoreColor, scoreColorClasses } from "@/lib/scoring";
 import { getWeekStart } from "@/lib/quota";
@@ -736,12 +736,7 @@ export function HomeClient({
               </div>
             )}
 
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <ScoreCard label="Hook" value={activeAnalysis?.hook_score} max={10} />
-              <ScoreCard label="CTA" value={activeAnalysis?.cta_score} max={10} />
-              <ScoreCard label="Urgency" value={activeAnalysis?.urgency_score} max={10} />
-              <LeadGenBadge value={activeAnalysis?.lead_gen_score} />
-            </div>
+            <ScoreComparisonTable analysis={activeAnalysis} />
 
             {!!activeAnalysis?.follow_up_posts?.length && (
               <div className="mt-5 border-t border-neutral-200 pt-4">
@@ -1008,24 +1003,64 @@ export function HomeClient({
   );
 }
 
-function ScoreCard({ label, value, max }: { label: string; value: number | null | undefined; max: number }) {
-  return (
-    <div className="rounded-lg border border-neutral-200 p-3 text-center">
-      <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-neutral-900">
-        {value != null ? value.toFixed(1) : "—"}
-        <span className="text-xs font-normal text-neutral-400">/{max}</span>
-      </p>
-    </div>
-  );
-}
+type ScoreRow = { label: string; before: number | null | undefined; after: number | null | undefined; note?: string };
 
-function LeadGenBadge({ value }: { value: number | null | undefined }) {
-  const color = scoreColor(value);
+function ScoreComparisonTable({ analysis }: { analysis: Analysis | null | undefined }) {
+  if (!analysis) return null;
+
+  const rows: ScoreRow[] = [
+    { label: "Hook", before: analysis.raw_hook_score, after: analysis.hook_score },
+    { label: "CTA", before: analysis.raw_cta_score, after: analysis.cta_score },
+    { label: "Urgency", before: analysis.raw_urgency_score, after: analysis.urgency_score },
+    { label: "Audience Fit", before: analysis.raw_audience_score, after: analysis.audience_score },
+    { label: "Pain Point Fit", before: analysis.raw_pain_score, after: analysis.pain_score },
+    { label: "Solution Fit", before: analysis.raw_solution_score, after: analysis.solution_score },
+    { label: "Trend Fit", before: analysis.raw_viral_score, after: analysis.viral_score, note: "general patterns, not live trends" },
+  ];
+
+  const hasAnyScore = rows.some((r) => r.before != null || r.after != null) || analysis.lead_gen_score != null;
+  if (!hasAnyScore) return null;
+
   return (
-    <div className={`rounded-lg border p-3 text-center ${scoreColorClasses[color]}`}>
-      <p className="text-xs font-medium uppercase tracking-wide opacity-70">Lead-Gen</p>
-      <p className="mt-1 text-lg font-semibold">{value ?? "—"}</p>
+    <div className="mt-5">
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-neutral-400">Score — before &amp; after</p>
+      <div className="overflow-x-auto rounded-lg border border-neutral-200">
+        <table className="w-full min-w-[420px] text-left text-sm">
+          <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-400">
+            <tr>
+              <th className="px-3 py-2 font-medium">Criterion</th>
+              <th className="px-3 py-2 font-medium">Before</th>
+              <th className="px-3 py-2 font-medium">After</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const improved = row.before != null && row.after != null && row.after > row.before;
+              return (
+                <tr key={row.label} className="border-b border-neutral-100 last:border-0">
+                  <td className="px-3 py-2 text-neutral-700">
+                    {row.label}
+                    {row.note && <span className="ml-1 text-[10px] text-neutral-400">({row.note})</span>}
+                  </td>
+                  <td className="px-3 py-2 text-neutral-500">{row.before != null ? row.before.toFixed(1) : "—"}</td>
+                  <td className={`px-3 py-2 font-medium ${improved ? "text-emerald-600" : "text-neutral-800"}`}>
+                    {row.after != null ? row.after.toFixed(1) : "—"}
+                  </td>
+                </tr>
+              );
+            })}
+            <tr className="bg-neutral-50">
+              <td className="px-3 py-2 font-semibold text-neutral-900">Lead-Gen Score</td>
+              <td className="px-3 py-2 text-neutral-500">{analysis.raw_lead_gen_score ?? "—"}</td>
+              <td
+                className={`px-3 py-2 font-semibold ${scoreColorClasses[scoreColor(analysis.lead_gen_score)].split(" ").find((c) => c.startsWith("text-")) ?? "text-neutral-900"}`}
+              >
+                {analysis.lead_gen_score ?? "—"}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

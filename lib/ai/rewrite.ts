@@ -2,12 +2,21 @@ import type { BrandVoice } from "@/lib/types";
 import { PLATFORM_GUIDANCE, platformLabel, type PlatformId } from "@/lib/platforms";
 import { TONE_GUIDANCE, type ToneId } from "@/lib/tones";
 
-export type RewriteResult = {
-  rewritten_text: string;
+export type ScoreSet = {
   hook_score: number;
   cta_score: number;
   urgency_score: number;
+  audience_score: number;
+  pain_score: number;
+  solution_score: number;
+  viral_score: number;
   lead_gen_score: number;
+};
+
+export type RewriteResult = {
+  rewritten_text: string;
+  before: ScoreSet;
+  after: ScoreSet;
   confidence: number;
   rationale: string;
   follow_up_posts: string[];
@@ -28,6 +37,9 @@ const FOLLOW_UP_MIN_LEN = 70;
 const FOLLOW_UP_MAX_LEN = 120;
 const FOLLOW_UP_COUNT = 5;
 const MAX_INSTRUCTIONS_LEN = 300;
+
+const SCORE_SET_SHAPE =
+  '{"hook_score": number, "cta_score": number, "urgency_score": number, "audience_score": number, "pain_score": number, "solution_score": number, "viral_score": number, "lead_gen_score": number}';
 
 const BASE_PROMPT = `You are an expert social media copywriter specializing in lead generation for local service businesses.
 
@@ -52,11 +64,19 @@ Format rewritten_text for readability, the way real social posts are formatted:
 - Short paragraphs — 1 to 2 sentences each.
 - A blank line (\\n\\n) between each distinct idea or concept, so it's easy to skim on a phone.
 
-Then score the rewrite you produced against the six steps:
-- hook_score (0-10): does the hook (steps 1-2) name the reader's exact situation and the cost of inaction?
-- cta_score (0-10): does the body and CTA (steps 3-6) include a checkable proof point, answer the likely objection, and end in exactly one verb + one contact method?
+Score BOTH the original raw post ("before") and your rewrite ("after") on these same seven dimensions, so the improvement is visible. Score the raw post exactly as given — do not mentally improve it first:
+- hook_score (0-10): does the first sentence name the reader's exact situation and the cost of inaction?
+- cta_score (0-10): is there a checkable proof point, an answered objection, and exactly one verb + one contact method?
 - urgency_score (0-10): is there a genuine (not manufactured) time-bound phrase or scarcity signal?
-- lead_gen_score (0-100): overall lead-gen strength, a weighted average of the three above scaled to 100, capped at 100
+- audience_score (0-10): how precisely does this post speak to the brand's stated target audience, versus a generic reader?
+- pain_score (0-10): how directly does this post name what that audience already wants or fears?
+- solution_score (0-10): how clearly does this post connect to the specific outcome or solution the business delivers?
+- viral_score (0-10): based on general knowledge of what tends to perform well on social media — a strong pattern-interrupting hook, punchy pacing, a format people stop scrolling for — NOT a live trends lookup (you have no real-time data on what's currently viral). Judge structural/stylistic virality only.
+- lead_gen_score (0-100): overall lead-gen strength — a weighted average (roughly hook 20%, cta 20%, urgency 10%, audience 15%, pain 15%, solution 15%, viral 5%) scaled to 100, capped at 100
+
+If no brand voice input is given below, judge audience_score/pain_score/solution_score against what's inferable from the raw post itself rather than guessing at an unstated brand.
+
+Also include:
 - confidence (0-1): your confidence in these scores
 - rationale: one sentence explaining the scores
 
@@ -65,7 +85,7 @@ Also write exactly ${FOLLOW_UP_COUNT} short follow-up posts to run in the days a
 Also write an image_prompt: a detailed image-generation prompt (2-4 sentences) for a photo or illustration to run alongside this specific post. It must have a strong, scroll-stopping visual hook — an unexpected angle, a striking moment, or vivid emotion, not a flat stock-photo pose — and must directly support and reinforce THIS post's message: the scene and subject should visually echo the pain point, offer, or outcome in the rewritten text, not be generic. If any people appear in the image, they must match the brand's target audience (age, life stage, cultural/regional context) described below — do not default to generic stock-photo demographics. Match the described color theme/mood if one is given. Do not include any text, words, letters, or logos in the image description. This prompt will be shown to the user to review and edit before any image is generated, so make it concrete and specific enough to act on as-is.
 
 Respond with ONLY a JSON object, no markdown, matching exactly this shape:
-{"rewritten_text": string, "hook_score": number, "cta_score": number, "urgency_score": number, "lead_gen_score": number, "confidence": number, "rationale": string, "follow_up_posts": string[], "image_prompt": string}`;
+{"rewritten_text": string, "before": ${SCORE_SET_SHAPE}, "after": ${SCORE_SET_SHAPE}, "confidence": number, "rationale": string, "follow_up_posts": string[], "image_prompt": string}`;
 
 function platformGuide(platform: string | null | undefined): string {
   const guidance = PLATFORM_GUIDANCE[platform as PlatformId] ?? PLATFORM_GUIDANCE.facebook;
@@ -97,15 +117,16 @@ function brandVoiceGuide(brandVoice: BrandVoice | null | undefined, tone: string
   const toneOverridden = !!tone && tone !== "brand-voice";
 
   // Step 1 (Reader) and step 2 (Tension) — use this instead of inventing a
-  // generic audience or a made-up want/fear.
+  // generic audience or a made-up want/fear. Also feeds audience_score/pain_score.
   const readerLines: string[] = [];
-  if (brandVoice.target_audience) readerLines.push(`Exact reader — step 1 (Reader): ${brandVoice.target_audience}`);
+  if (brandVoice.target_audience) readerLines.push(`Exact reader — step 1 (Reader), also what audience_score is judged against: ${brandVoice.target_audience}`);
   if (brandVoice.audience_feelings.length)
-    readerLines.push(`What they already want or fear — step 2 (Tension): ${brandVoice.audience_feelings.join(", ")}`);
+    readerLines.push(`What they already want or fear — step 2 (Tension), also what pain_score is judged against: ${brandVoice.audience_feelings.join(", ")}`);
 
-  // Step 3 (Proof) — the checkable fact/outcome to lead the body with.
+  // Step 3 (Proof) — the checkable fact/outcome to lead the body with. Also
+  // feeds solution_score.
   const proofLines: string[] = [];
-  if (brandVoice.persona_note) proofLines.push(`The one outcome this business delivers: ${brandVoice.persona_note}`);
+  if (brandVoice.persona_note) proofLines.push(`The one outcome this business delivers, also what solution_score is judged against: ${brandVoice.persona_note}`);
   if (brandVoice.topics.length) proofLines.push(`Topics with real proof behind them: ${brandVoice.topics.join(", ")}`);
 
   // Steps 5-6 (Risk, The Ask) — how this business actually asks for contact.
@@ -169,6 +190,35 @@ export async function generateRewrite(
   }
 }
 
+const SCORE_FIELDS = [
+  "hook_score",
+  "cta_score",
+  "urgency_score",
+  "audience_score",
+  "pain_score",
+  "solution_score",
+  "viral_score",
+  "lead_gen_score",
+] as const;
+
+function parseScoreSet(raw: unknown): ScoreSet | null {
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  for (const field of SCORE_FIELDS) {
+    if (typeof record[field] !== "number") return null;
+  }
+  return {
+    hook_score: record.hook_score as number,
+    cta_score: record.cta_score as number,
+    urgency_score: record.urgency_score as number,
+    audience_score: record.audience_score as number,
+    pain_score: record.pain_score as number,
+    solution_score: record.solution_score as number,
+    viral_score: record.viral_score as number,
+    lead_gen_score: Math.min(100, record.lead_gen_score as number),
+  };
+}
+
 async function attemptRewrite(
   apiKey: string,
   systemPrompt: string,
@@ -212,20 +262,17 @@ async function attemptRewrite(
     throw new Error("OpenAI response missing message content");
   }
 
-  let parsed: Partial<RewriteResult>;
+  let parsed: Partial<RewriteResult> & { before?: unknown; after?: unknown };
   try {
     parsed = JSON.parse(content);
   } catch {
     throw new Error("OpenAI response was not valid JSON");
   }
 
-  if (
-    typeof parsed.rewritten_text !== "string" ||
-    typeof parsed.hook_score !== "number" ||
-    typeof parsed.cta_score !== "number" ||
-    typeof parsed.urgency_score !== "number" ||
-    typeof parsed.lead_gen_score !== "number"
-  ) {
+  const before = parseScoreSet(parsed.before);
+  const after = parseScoreSet(parsed.after);
+
+  if (typeof parsed.rewritten_text !== "string" || !before || !after) {
     throw new Error("OpenAI response missing required fields");
   }
 
@@ -240,10 +287,8 @@ async function attemptRewrite(
 
   return {
     rewritten_text: parsed.rewritten_text,
-    hook_score: parsed.hook_score,
-    cta_score: parsed.cta_score,
-    urgency_score: parsed.urgency_score,
-    lead_gen_score: Math.min(100, parsed.lead_gen_score),
+    before,
+    after,
     confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.5,
     rationale: typeof parsed.rationale === "string" ? parsed.rationale : "",
     follow_up_posts: followUps,
