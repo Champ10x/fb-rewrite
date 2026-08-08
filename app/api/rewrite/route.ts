@@ -28,6 +28,7 @@ export async function POST(request: Request) {
       : null;
   const keyPoint =
     typeof body?.key_point === "string" && body.key_point.trim() ? body.key_point.trim().slice(0, MAX_KEY_POINT_LEN) : null;
+  const humanize = body?.humanize === true;
 
   if (!rawText) {
     return NextResponse.json({ error: "empty_text", message: "Please paste a post first" }, { status: 400 });
@@ -104,7 +105,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await generateRewrite(rawText, { brandVoice, platform, targetCharCount, tone, keyPoint });
+    const result = await generateRewrite(rawText, { brandVoice, platform, targetCharCount, tone, keyPoint, humanize });
 
     const { data: analysis, error: analysisError } = await supabase
       .from("analyses")

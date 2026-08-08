@@ -31,6 +31,7 @@ export type GenerateRewriteOptions = {
   targetCharCount?: number | null;
   tone?: string | null;
   keyPoint?: string | null;
+  humanize?: boolean | null;
 };
 
 const FOLLOW_UP_MIN_LEN = 70;
@@ -112,6 +113,11 @@ function toneGuide(tone: string | null | undefined): string {
   return `\n\nOverride tone: ignore any voice/style guidance below (words, adjectives, keyword lists) and write in this specific tone instead — ${guidance} Still use the reader, proof, and contact-method inputs below exactly as given; only the voice and style are overridden.`;
 }
 
+function humanizeGuide(humanize: boolean | null | undefined): string {
+  if (!humanize) return "";
+  return `\n\nHumanize the writing so it reads like a real person typed it, not an AI. Avoid AI tells: no "in today's fast-paced world", "moreover", "furthermore", "unlock", "elevate", "dive into", "game-changer", "in conclusion", and no over-balanced "not only... but also" constructions or robotic parallel-structure lists. Vary sentence length and rhythm, use contractions, and let some sentences be short and blunt rather than polished. Still follow every formatting and content rule above — this only changes how natural the phrasing sounds.`;
+}
+
 function brandVoiceGuide(brandVoice: BrandVoice | null | undefined, tone: string | null | undefined): string {
   if (!brandVoice) return "";
   const toneOverridden = !!tone && tone !== "brand-voice";
@@ -178,7 +184,8 @@ export async function generateRewrite(
     targetLengthGuide(options.targetCharCount) +
     keyPointGuide(options.keyPoint) +
     toneGuide(options.tone) +
-    brandVoiceGuide(options.brandVoice, options.tone);
+    brandVoiceGuide(options.brandVoice, options.tone) +
+    humanizeGuide(options.humanize);
   const trimmedInstructions = options.instructions?.trim().slice(0, MAX_INSTRUCTIONS_LEN) || null;
 
   try {

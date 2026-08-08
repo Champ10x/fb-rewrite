@@ -318,6 +318,32 @@ describe("generateRewrite — before/after scoring", () => {
   });
 });
 
+describe("generateRewrite — humanize option", () => {
+  it("includes humanize guidance when humanize is true", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(okFetchResponse(mockOpenAiResponse({})));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateRewrite("some raw post", { humanize: true });
+
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const systemMessage = requestBody.messages[0].content as string;
+    expect(systemMessage).toContain("Humanize the writing");
+  });
+
+  it("omits humanize guidance when humanize is false or not given", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(okFetchResponse(mockOpenAiResponse({})));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateRewrite("some raw post");
+
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const systemMessage = requestBody.messages[0].content as string;
+    expect(systemMessage).not.toContain("Humanize the writing");
+  });
+});
+
 describe("generateRewrite — key point guidance", () => {
   it("includes the key point as a required inclusion when given", async () => {
     vi.stubEnv("OPENAI_API_KEY", "test-key");

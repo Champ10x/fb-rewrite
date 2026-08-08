@@ -16,7 +16,7 @@ import { Sidebar } from "@/components/sidebar";
 
 const MAX_LEN = 2000;
 const FACEBOOK_PAGE_URL = "https://www.facebook.com/patrick4freedom";
-const APP_URL = "https://fb-rewrite.vercel.app";
+const APP_URL = "https://tinyurl.com/postboost2026";
 
 export function HomeClient({
   initialPosts,
@@ -42,6 +42,7 @@ export function HomeClient({
   const [tone, setTone] = useState<ToneId>("brand-voice");
   const [targetCharCount, setTargetCharCount] = useState("");
   const [keyPoint, setKeyPoint] = useState("");
+  const [humanize, setHumanize] = useState(false);
   const [loadingRewrite, setLoadingRewrite] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [draftFinalText, setDraftFinalText] = useState("");
@@ -66,6 +67,11 @@ export function HomeClient({
   const [generatingImage, setGeneratingImage] = useState(false);
   const [subscribeEmail, setSubscribeEmail] = useState("");
   const [subscribeStatus, setSubscribeStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [carouselDrafts, setCarouselDrafts] = useState<string[]>([]);
+  const [showCarouselEditor, setShowCarouselEditor] = useState(false);
+  const [draftingCarousel, setDraftingCarousel] = useState(false);
+  const [generatingCarousel, setGeneratingCarousel] = useState(false);
+  const [carouselError, setCarouselError] = useState<string | null>(null);
 
   const sortedPosts = useMemo(() => sortPosts(posts), [posts]);
   const activePost = posts.find((p) => p.id === activePostId) ?? null;
@@ -119,6 +125,7 @@ export function HomeClient({
           tone,
           target_char_count: targetCharCount.trim() ? Number(targetCharCount) : undefined,
           key_point: keyPoint.trim() || undefined,
+          humanize,
         }),
       });
       const data = await res.json();
@@ -160,6 +167,36 @@ export function HomeClient({
     }
   }
 
+  function downloadBrandVoice() {
+    if (!brandVoice) return;
+    const line = (label: string, value: string | null | undefined) => (value ? `${label}: ${value}\n` : "");
+    const list = (label: string, values: string[]) => (values.length ? `${label}: ${values.join(", ")}\n` : "");
+    const body =
+      `Brand Voice\n` +
+      `===========\n\n` +
+      list("Voice keywords", brandVoice.voice_keywords) +
+      list("Content style", brandVoice.content_style) +
+      list("Words to use", brandVoice.words_to_use) +
+      list("Words to avoid", brandVoice.words_to_avoid) +
+      line("Caption length preference", brandVoice.caption_length_pref) +
+      line("Script length preference", brandVoice.script_length_pref) +
+      list("CTA style", brandVoice.cta_style) +
+      list("CTA examples", brandVoice.cta_examples) +
+      list("Topics", brandVoice.topics) +
+      line("Persona note", brandVoice.persona_note) +
+      list("Audience feelings", brandVoice.audience_feelings) +
+      line("Target audience", brandVoice.target_audience) +
+      line("Color theme", brandVoice.color_theme);
+
+    const blob = new Blob([body], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "brand-voice.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function handleSave() {
     if (!activePost || !canEditActive) return;
     const text = draftFinalText.trim();
@@ -193,6 +230,9 @@ export function HomeClient({
     const analysis = latestAnalysis(post);
     setImagePromptDraft(analysis?.image_prompt ?? "");
     setShowImagePromptEditor(!analysis?.image_url);
+    setCarouselDrafts(analysis?.carousel_prompts ?? []);
+    setShowCarouselEditor(false);
+    setCarouselError(null);
   }
 
   async function handleGenerateImage() {
@@ -227,6 +267,61 @@ export function HomeClient({
       setRewriteError("Could not create image — please try again.");
     } finally {
       setGeneratingImage(false);
+    }
+  }
+
+  async function handleDraftCarousel() {
+    if (!activePost || !canEditActive) return;
+    setDraftingCarousel(true);
+    setCarouselError(null);
+    try {
+      const res = await fetch(`/api/posts/${activePost.id}/carousel-prompts`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setCarouselError(data.message ?? "Could not draft carousel prompts — please try again.");
+        return;
+      }
+      setCarouselDrafts(data.prompts);
+      setShowCarouselEditor(true);
+    } catch {
+      setCarouselError("Could not draft carousel prompts — please try again.");
+    } finally {
+      setDraftingCarousel(false);
+    }
+  }
+
+  async function handleGenerateCarousel() {
+    if (!activePost || !canEditActive) return;
+    const prompts = carouselDrafts.map((p) => p.trim());
+    if (prompts.some((p) => !p)) return;
+    setGeneratingCarousel(true);
+    setCarouselError(null);
+    try {
+      const res = await fetch(`/api/posts/${activePost.id}/generate-carousel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompts }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCarouselError(data.message ?? "Could not create carousel — please try again.");
+        return;
+      }
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === activePost.id
+            ? { ...p, analyses: p.analyses.map((a) => (a.id === data.analysis.id ? data.analysis : a)) }
+            : p,
+        ),
+      );
+      if (data.analysis?.carousel_tokens_used != null) {
+        setSessionTokens((prev) => prev + data.analysis.carousel_tokens_used);
+      }
+      setShowCarouselEditor(false);
+    } catch {
+      setCarouselError("Could not create carousel — please try again.");
+    } finally {
+      setGeneratingCarousel(false);
     }
   }
 
@@ -398,6 +493,14 @@ export function HomeClient({
                 {brandVoice ? "Edit brand voice" : "Set up brand voice"}
               </button>
             )}
+            {currentUser && brandVoice && (
+              <button
+                onClick={downloadBrandVoice}
+                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Download brand voice
+              </button>
+            )}
             <AuthHeader email={currentUser?.email ?? null} />
           </div>
         </header>
@@ -546,6 +649,16 @@ export function HomeClient({
                   className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
                 />
               </div>
+
+              <label className="mt-3 flex items-center gap-2 text-sm text-neutral-600">
+                <input
+                  type="checkbox"
+                  checked={humanize}
+                  onChange={(e) => setHumanize(e.target.checked)}
+                  className="h-4 w-4 rounded border-neutral-300"
+                />
+                Humanize output — write more like a real person, less like AI
+              </label>
 
               <button
                 onClick={() => handleRewrite()}
@@ -712,6 +825,102 @@ export function HomeClient({
                       </div>
                     </div>
                   )
+                )}
+              </div>
+            )}
+
+            {activeAnalysis && canEditActive && (
+              <div className="mt-3 border-t border-neutral-200 pt-3">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-400">IG Carousel</p>
+
+                {carouselError && <p className="mb-2 text-sm text-red-600">{carouselError}</p>}
+
+                {!showCarouselEditor && !activeAnalysis.carousel_image_urls?.length && (
+                  <button
+                    onClick={handleDraftCarousel}
+                    disabled={draftingCarousel}
+                    className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {draftingCarousel && <Spinner />}
+                    {draftingCarousel ? "Drafting…" : "Create IG carousel"}
+                  </button>
+                )}
+
+                {showCarouselEditor && (
+                  <div>
+                    <p className="mb-2 text-xs text-neutral-500">
+                      {carouselDrafts.length} slide prompts — edit before generating
+                    </p>
+                    <div className="space-y-2">
+                      {carouselDrafts.map((prompt, index) => (
+                        <textarea
+                          key={index}
+                          rows={2}
+                          value={prompt}
+                          onChange={(e) =>
+                            setCarouselDrafts((prev) => prev.map((p, i) => (i === index ? e.target.value : p)))
+                          }
+                          placeholder={`Slide ${index + 1} image prompt…`}
+                          className="w-full resize-none rounded-lg border border-neutral-300 p-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                        />
+                      ))}
+                    </div>
+                    <div className="mt-2 flex items-center gap-3">
+                      <button
+                        onClick={handleGenerateCarousel}
+                        disabled={generatingCarousel || carouselDrafts.some((p) => !p.trim())}
+                        className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {generatingCarousel && <Spinner />}
+                        {generatingCarousel ? "Generating…" : "Generate carousel"}
+                      </button>
+                      <button
+                        onClick={() => setShowCarouselEditor(false)}
+                        className="text-xs font-medium text-neutral-500 underline-offset-2 hover:underline"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!showCarouselEditor && !!activeAnalysis.carousel_image_urls?.length && (
+                  <div>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {activeAnalysis.carousel_image_urls.map((url, index) => (
+                        <div key={index} className="w-32 shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={url}
+                            alt={`Carousel slide ${index + 1}`}
+                            className="w-32 rounded-lg border border-neutral-200"
+                          />
+                          <button
+                            onClick={() => handleDownloadImage(url, `fb-rewrite-${activePost.id}-slide-${index + 1}.png`)}
+                            className="mt-1 w-full rounded-lg border border-neutral-300 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                          >
+                            Download
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex items-center gap-3">
+                      {activeAnalysis.carousel_tokens_used != null && (
+                        <span className="text-xs text-neutral-400">
+                          Tokens used — carousel: {displayTokens(activeAnalysis.carousel_tokens_used, tokenMarkup)}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => {
+                          setCarouselDrafts(activeAnalysis.carousel_prompts);
+                          setShowCarouselEditor(true);
+                        }}
+                        className="text-xs font-medium text-neutral-500 underline-offset-2 hover:underline"
+                      >
+                        Edit prompts &amp; regenerate
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             )}

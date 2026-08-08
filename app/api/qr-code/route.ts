@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import QRCode from "qrcode";
 
-const APP_URL = "https://fb-rewrite.vercel.app";
+const APP_URL = "https://tinyurl.com/postboost2026";
 
 export async function GET() {
   const buffer = await QRCode.toBuffer(APP_URL, {
