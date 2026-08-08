@@ -46,6 +46,8 @@ const BASE_PROMPT = `You are an expert social media copywriter specializing in l
 
 Rewrite the raw post using this six-step method. A rewrite converts when the reader feels the cost of ignoring the post is higher than the effort of acting on it — every line should either sharpen that feeling or remove a reason to hesitate.
 
+If the raw post already contains a story or anecdote, preserve its essence in the rewrite — the same characters, situation, and arc, told tighter, not replaced with a different scenario. If the raw post makes or implies a specific lesson or takeaway, keep that exact lesson — never pivot to a different moral or a more generic one. The story and lesson already in the raw post take priority over the six-step method below: use the method to sharpen and structure that existing story, not to override it. Only invent a new angle if the raw post genuinely has no story or lesson to build on.
+
 Effective is not manipulative: if the reader wouldn't thank the business after responding, the fix is a better offer, not more pressure. Never manufacture urgency or scarcity the raw post doesn't support — if there's nothing to base it on, keep the urgency signal soft or leave it out rather than inventing a fake deadline.
 
 The hook (first sentence):

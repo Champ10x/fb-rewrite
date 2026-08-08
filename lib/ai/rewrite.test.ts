@@ -77,6 +77,22 @@ describe("generateRewrite — AI-failure fallback trigger", () => {
   });
 });
 
+describe("generateRewrite — story and lesson priority", () => {
+  it("instructs the model to preserve an existing story/lesson over the six-step method", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(okFetchResponse(mockOpenAiResponse({})));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateRewrite("some raw post");
+
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const systemMessage = requestBody.messages[0].content as string;
+    expect(systemMessage).toContain("preserve its essence");
+    expect(systemMessage).toContain("never pivot to a different moral");
+    expect(systemMessage).toContain("take priority over the six-step method");
+  });
+});
+
 describe("generateRewrite — brand voice guide", () => {
   it("includes brand voice keywords and avoided words in the system prompt sent to OpenAI", async () => {
     vi.stubEnv("OPENAI_API_KEY", "test-key");

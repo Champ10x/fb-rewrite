@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Analysis, BrandVoice, CurrentUser, PostWithRelations } from "@/lib/types";
 import { latestAnalysis, sortPosts } from "@/lib/posts";
@@ -65,6 +65,8 @@ export function HomeClient({
   const [imagePromptDraft, setImagePromptDraft] = useState("");
   const [showImagePromptEditor, setShowImagePromptEditor] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const uploadImageInputRef = useRef<HTMLInputElement>(null);
   const [subscribeEmail, setSubscribeEmail] = useState("");
   const [subscribeStatus, setSubscribeStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [carouselDrafts, setCarouselDrafts] = useState<string[]>([]);
@@ -156,9 +158,7 @@ export function HomeClient({
       setActivePostId(newPost.id);
       setDraftFinalText(newPost.final_text ?? text);
       setSaveState("idle");
-      setRawText("");
       setTargetCharCount("");
-      setKeyPoint("");
       setImagePromptDraft(data.analysis?.image_prompt ?? "");
       setShowImagePromptEditor(true);
       setSessionTries((prev) => prev + 1);
@@ -277,6 +277,37 @@ export function HomeClient({
       setRewriteError("Could not create image — please try again.");
     } finally {
       setGeneratingImage(false);
+    }
+  }
+
+  async function handleUploadImage(file: File) {
+    if (!activePost || !canEditActive) return;
+    setUploadingImage(true);
+    setRewriteError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`/api/posts/${activePost.id}/upload-image`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRewriteError(data.message ?? "Could not upload image — please try again.");
+        return;
+      }
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === activePost.id
+            ? { ...p, analyses: p.analyses.map((a) => (a.id === data.analysis.id ? data.analysis : a)) }
+            : p,
+        ),
+      );
+      setShowImagePromptEditor(false);
+    } catch {
+      setRewriteError("Could not upload image — please try again.");
+    } finally {
+      setUploadingImage(false);
     }
   }
 
@@ -881,14 +912,33 @@ export function HomeClient({
                         placeholder="Describe the image to generate for this post…"
                         className="w-full resize-none rounded-lg border border-neutral-300 p-3 text-sm text-neutral-900 outline-none focus:border-neutral-500"
                       />
-                      <div className="mt-2 flex items-center gap-3">
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
                         <button
                           onClick={handleGenerateImage}
-                          disabled={generatingImage || !imagePromptDraft.trim()}
+                          disabled={generatingImage || uploadingImage || !imagePromptDraft.trim()}
                           className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           {generatingImage && <Spinner />}
                           {generatingImage ? "Generating…" : "Generate Image"}
+                        </button>
+                        <input
+                          ref={uploadImageInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/gif"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadImage(file);
+                            e.target.value = "";
+                          }}
+                        />
+                        <button
+                          onClick={() => uploadImageInputRef.current?.click()}
+                          disabled={generatingImage || uploadingImage}
+                          className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {uploadingImage && <Spinner />}
+                          {uploadingImage ? "Uploading…" : "Upload image instead"}
                         </button>
                         {activeAnalysis.image_url && (
                           <button
