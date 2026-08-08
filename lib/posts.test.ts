@@ -51,6 +51,8 @@ function makeAnalysis(overrides: Partial<Analysis>): Analysis {
     carousel_prompts: [],
     carousel_image_urls: [],
     carousel_tokens_used: null,
+    reel_script: null,
+    reel_script_tokens_used: null,
     created_at: "2026-01-01T00:00:00Z",
     ...overrides,
   };

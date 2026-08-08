@@ -72,6 +72,12 @@ export function HomeClient({
   const [draftingCarousel, setDraftingCarousel] = useState(false);
   const [generatingCarousel, setGeneratingCarousel] = useState(false);
   const [carouselError, setCarouselError] = useState<string | null>(null);
+  const [reelScriptDraft, setReelScriptDraft] = useState("");
+  const [reelScriptDraftTokens, setReelScriptDraftTokens] = useState<number | null>(null);
+  const [showReelScriptEditor, setShowReelScriptEditor] = useState(false);
+  const [draftingReelScript, setDraftingReelScript] = useState(false);
+  const [savingReelScript, setSavingReelScript] = useState(false);
+  const [reelScriptError, setReelScriptError] = useState<string | null>(null);
 
   const sortedPosts = useMemo(() => sortPosts(posts), [posts]);
   const activePost = posts.find((p) => p.id === activePostId) ?? null;
@@ -233,6 +239,10 @@ export function HomeClient({
     setCarouselDrafts(analysis?.carousel_prompts ?? []);
     setShowCarouselEditor(false);
     setCarouselError(null);
+    setReelScriptDraft(analysis?.reel_script ?? "");
+    setReelScriptDraftTokens(null);
+    setShowReelScriptEditor(false);
+    setReelScriptError(null);
   }
 
   async function handleGenerateImage() {
@@ -323,6 +333,72 @@ export function HomeClient({
     } finally {
       setGeneratingCarousel(false);
     }
+  }
+
+  async function handleDraftReelScript() {
+    if (!activePost || !canEditActive) return;
+    setDraftingReelScript(true);
+    setReelScriptError(null);
+    try {
+      const res = await fetch(`/api/posts/${activePost.id}/reel-script`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setReelScriptError(data.message ?? "Could not draft a reel script — please try again.");
+        return;
+      }
+      setReelScriptDraft(data.script);
+      setReelScriptDraftTokens(data.tokensUsed ?? null);
+      setShowReelScriptEditor(true);
+    } catch {
+      setReelScriptError("Could not draft a reel script — please try again.");
+    } finally {
+      setDraftingReelScript(false);
+    }
+  }
+
+  async function handleSaveReelScript() {
+    if (!activePost || !canEditActive) return;
+    const script = reelScriptDraft.trim();
+    if (!script) return;
+    setSavingReelScript(true);
+    setReelScriptError(null);
+    try {
+      const res = await fetch(`/api/posts/${activePost.id}/save-reel-script`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ script, tokensUsed: reelScriptDraftTokens }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setReelScriptError(data.message ?? "Could not save the reel script — please try again.");
+        return;
+      }
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === activePost.id
+            ? { ...p, analyses: p.analyses.map((a) => (a.id === data.analysis.id ? data.analysis : a)) }
+            : p,
+        ),
+      );
+      if (reelScriptDraftTokens != null) {
+        setSessionTokens((prev) => prev + reelScriptDraftTokens);
+      }
+      setShowReelScriptEditor(false);
+    } catch {
+      setReelScriptError("Could not save the reel script — please try again.");
+    } finally {
+      setSavingReelScript(false);
+    }
+  }
+
+  function downloadReelScript(script: string) {
+    const blob = new Blob([script], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "reel-script.txt";
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function handleSelectFollowUpImage(index: number, text: string) {
@@ -918,6 +994,92 @@ export function HomeClient({
                         className="text-xs font-medium text-neutral-500 underline-offset-2 hover:underline"
                       >
                         Edit prompts &amp; regenerate
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeAnalysis && canEditActive && (
+              <div className="mt-3 border-t border-neutral-200 pt-3">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-400">Short Reel Script</p>
+
+                {reelScriptError && <p className="mb-2 text-sm text-red-600">{reelScriptError}</p>}
+
+                {!showReelScriptEditor && !activeAnalysis.reel_script && (
+                  <button
+                    onClick={handleDraftReelScript}
+                    disabled={draftingReelScript}
+                    className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {draftingReelScript && <Spinner />}
+                    {draftingReelScript ? "Drafting…" : "Create reel script"}
+                  </button>
+                )}
+
+                {showReelScriptEditor && (
+                  <div>
+                    <p className="mb-2 text-xs text-neutral-500">Hook, scenes, and CTA — edit before saving</p>
+                    <textarea
+                      rows={10}
+                      value={reelScriptDraft}
+                      onChange={(e) => setReelScriptDraft(e.target.value)}
+                      placeholder="HOOK (0-3s): …"
+                      className="w-full resize-y rounded-lg border border-neutral-300 p-3 font-mono text-xs text-neutral-900 outline-none focus:border-neutral-500"
+                    />
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={handleSaveReelScript}
+                        disabled={savingReelScript || !reelScriptDraft.trim()}
+                        className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {savingReelScript && <Spinner />}
+                        {savingReelScript ? "Saving…" : "Save script"}
+                      </button>
+                      <button
+                        onClick={handleDraftReelScript}
+                        disabled={draftingReelScript}
+                        className="text-xs font-medium text-neutral-500 underline-offset-2 hover:underline"
+                      >
+                        {draftingReelScript ? "Regenerating…" : "Regenerate with AI"}
+                      </button>
+                      <button
+                        onClick={() => setShowReelScriptEditor(false)}
+                        className="text-xs font-medium text-neutral-500 underline-offset-2 hover:underline"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!showReelScriptEditor && !!activeAnalysis.reel_script && (
+                  <div>
+                    <pre className="whitespace-pre-wrap rounded-lg border border-neutral-200 bg-neutral-50 p-3 font-mono text-xs text-neutral-700">
+                      {activeAnalysis.reel_script}
+                    </pre>
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={() => downloadReelScript(activeAnalysis.reel_script!)}
+                        className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      >
+                        Download
+                      </button>
+                      {activeAnalysis.reel_script_tokens_used != null && (
+                        <span className="text-xs text-neutral-400">
+                          Tokens used — script: {displayTokens(activeAnalysis.reel_script_tokens_used, tokenMarkup)}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => {
+                          setReelScriptDraft(activeAnalysis.reel_script ?? "");
+                          setReelScriptDraftTokens(null);
+                          setShowReelScriptEditor(true);
+                        }}
+                        className="text-xs font-medium text-neutral-500 underline-offset-2 hover:underline"
+                      >
+                        Edit / regenerate
                       </button>
                     </div>
                   </div>

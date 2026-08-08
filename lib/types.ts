@@ -59,6 +59,8 @@ export type Analysis = {
   carousel_prompts: string[];
   carousel_image_urls: string[];
   carousel_tokens_used: number | null;
+  reel_script: string | null;
+  reel_script_tokens_used: number | null;
   created_at: string;
 };
 
