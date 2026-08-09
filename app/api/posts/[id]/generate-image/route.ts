@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { generateImage } from "@/lib/ai/image";
 import { writeAuditLog } from "@/lib/audit";
+import { recordStyleEdit } from "@/lib/ai/style-learning";
 
 const MAX_PROMPT_LEN = 1000;
 const RATE_LIMIT = 15;
@@ -50,6 +51,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (!analysis) {
     return NextResponse.json({ error: "not_found", message: "No analysis found for this post" }, { status: 404 });
+  }
+
+  if (analysis.image_prompt) {
+    await recordStyleEdit(supabase, user.id, "image", analysis.image_prompt, prompt);
   }
 
   try {

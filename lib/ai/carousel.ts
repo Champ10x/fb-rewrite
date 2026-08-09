@@ -12,6 +12,8 @@ function brandImageContext(brandVoice: BrandVoice | null | undefined): string {
   const lines: string[] = [];
   if (brandVoice.target_audience) lines.push(`Target audience (match this in any people shown): ${brandVoice.target_audience}`);
   if (brandVoice.color_theme) lines.push(`Color theme / visual mood: ${brandVoice.color_theme}`);
+  if (brandVoice.learned_image_style_notes)
+    lines.push(`Learned from this user's past edits to AI-drafted image prompts — match these preferences: ${brandVoice.learned_image_style_notes}`);
   if (!lines.length) return "";
   return `\n\nBrand context:\n${lines.map((l) => `- ${l}`).join("\n")}`;
 }

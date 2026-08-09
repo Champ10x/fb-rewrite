@@ -114,6 +114,8 @@ export type BrandVoice = {
   audience_feelings: string[];
   target_audience: string | null;
   color_theme: string | null;
+  learned_style_notes: string | null;
+  learned_image_style_notes: string | null;
   created_at: string;
   updated_at: string;
 };

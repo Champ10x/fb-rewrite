@@ -116,6 +116,8 @@ describe("generateRewrite — brand voice guide", () => {
         audience_feelings: [],
         target_audience: "Singaporean, age 45-60, sole breadwinner",
         color_theme: "gold and black, mature",
+        learned_style_notes: null,
+        learned_image_style_notes: null,
         created_at: "2026-01-01T00:00:00Z",
         updated_at: "2026-01-01T00:00:00Z",
       },
@@ -128,6 +130,41 @@ describe("generateRewrite — brand voice guide", () => {
     expect(systemMessage).toContain("get rich quick");
     expect(systemMessage).toContain("Singaporean, age 45-60, sole breadwinner");
     expect(systemMessage).toContain("gold and black, mature");
+  });
+
+  it("includes learned style notes from past edits when present", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue(okFetchResponse(mockOpenAiResponse({})));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await generateRewrite("some raw post", {
+      brandVoice: {
+        id: "bv-1",
+        user_id: "u-1",
+        voice_keywords: [],
+        words_to_use: [],
+        words_to_avoid: [],
+        content_style: [],
+        caption_length_pref: null,
+        script_length_pref: null,
+        cta_style: [],
+        cta_examples: [],
+        topics: [],
+        persona_note: null,
+        audience_feelings: [],
+        target_audience: null,
+        color_theme: null,
+        learned_style_notes: "Prefers short sentences and drops exclamation marks.",
+        learned_image_style_notes: "Prefers real photography over illustration.",
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+    });
+
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const systemMessage = requestBody.messages[0].content as string;
+    expect(systemMessage).toContain("Prefers short sentences and drops exclamation marks.");
+    expect(systemMessage).toContain("Prefers real photography over illustration.");
   });
 });
 

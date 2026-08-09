@@ -152,10 +152,14 @@ function brandVoiceGuide(brandVoice: BrandVoice | null | undefined, tone: string
     if (brandVoice.words_to_avoid.length) voiceLines.push(`Never use these words/phrases: ${brandVoice.words_to_avoid.join(", ")}`);
   }
   if (brandVoice.caption_length_pref) voiceLines.push(`Caption length: ${brandVoice.caption_length_pref}`);
+  if (brandVoice.learned_style_notes)
+    voiceLines.push(`Learned from this user's past edits to AI drafts — match these habits: ${brandVoice.learned_style_notes}`);
 
   const imageLines: string[] = [];
   if (brandVoice.target_audience) imageLines.push(`Target audience (match this in any people shown in the image): ${brandVoice.target_audience}`);
   if (brandVoice.color_theme) imageLines.push(`Color theme / visual mood for the image: ${brandVoice.color_theme}`);
+  if (brandVoice.learned_image_style_notes)
+    imageLines.push(`Learned from this user's past edits to AI-drafted image prompts — match these preferences: ${brandVoice.learned_image_style_notes}`);
 
   const sections: string[] = [];
   if (readerLines.length) sections.push(readerLines.map((l) => `- ${l}`).join("\n"));

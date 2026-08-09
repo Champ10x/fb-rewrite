@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { writeAuditLog } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
+import { recordStyleEdit } from "@/lib/ai/style-learning";
 
 const MAX_LEN = 2000;
 
@@ -38,6 +39,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       { error: "forbidden", message: "You don't have permission to edit this post" },
       { status: 403 },
     );
+  }
+
+  const { data: analysis } = await supabase
+    .from("analyses")
+    .select("rewritten_text")
+    .eq("post_id", id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (analysis?.rewritten_text) {
+    await recordStyleEdit(supabase, user.id, "text", analysis.rewritten_text, finalText);
   }
 
   await writeAuditLog(supabase, {

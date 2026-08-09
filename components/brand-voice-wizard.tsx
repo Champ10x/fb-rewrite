@@ -473,6 +473,24 @@ export function BrandVoiceWizard({
               </ul>
             </div>
 
+            {(existingBrandVoice?.learned_style_notes || existingBrandVoice?.learned_image_style_notes) && (
+              <div className="mb-5 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  Learned from your edits
+                </p>
+                {existingBrandVoice?.learned_style_notes && (
+                  <p className="mb-2 text-sm text-neutral-600">
+                    <span className="font-medium">Writing:</span> {existingBrandVoice.learned_style_notes}
+                  </p>
+                )}
+                {existingBrandVoice?.learned_image_style_notes && (
+                  <p className="text-sm text-neutral-600">
+                    <span className="font-medium">Images:</span> {existingBrandVoice.learned_image_style_notes}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="max-h-[55vh] space-y-6 overflow-y-auto pr-1">
               <EditSection title="Reader — who this is for">
                 <FieldLabel text="Who is your target audience?" />
