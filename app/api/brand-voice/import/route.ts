@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { parseBrandVoiceDoc } from "@/lib/ai/brand-voice-import";
 import { optimizeBrandVoice } from "@/lib/ai/optimize-brand-voice";
+import { logError } from "@/lib/error-log";
 
 const MAX_LEN = 20000;
 
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ brandVoice: data });
   } catch (err) {
     console.error("brand voice import failed", err);
+    await logError(supabase, { source: "brand-voice-import", message: "Brand voice document import failed", err, userId: user.id });
     return NextResponse.json(
       { error: "ai_failed", message: "Could not read that document — please try again or answer the questions instead." },
       { status: 502 },

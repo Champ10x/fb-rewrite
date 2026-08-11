@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { generateCarouselPrompts } from "@/lib/ai/carousel";
+import { logError } from "@/lib/error-log";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -22,6 +23,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ prompts: result.prompts, tokensUsed: result.tokensUsed });
   } catch (err) {
     console.error("carousel-prompts failed", err);
+    await logError(supabase, { source: "carousel-prompts", message: "Carousel prompt drafting failed", err, userId: user.id, postId: id });
     return NextResponse.json(
       { error: "ai_failed", message: "Could not draft carousel prompts — please try again." },
       { status: 502 },

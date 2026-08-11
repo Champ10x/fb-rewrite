@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { HomeClient } from "@/components/home-client";
 import { WEEKLY_POST_QUOTA } from "@/lib/quota";
 import { DEFAULT_TOKEN_DISPLAY_MARKUP } from "@/lib/tokens";
-import type { BrandVoice, PostWithRelations } from "@/lib/types";
+import type { BrandVoice, ErrorLog, PostWithRelations } from "@/lib/types";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -20,6 +20,7 @@ export default async function Home() {
   let initialBrandVoice: BrandVoice | null = null;
   let weeklyQuota = WEEKLY_POST_QUOTA;
   let isAdmin = false;
+  let unresolvedErrors: ErrorLog[] = [];
   if (currentUser) {
     const [{ data: brandVoice }, { data: profile }] = await Promise.all([
       supabase.from("brand_voices").select("*").eq("user_id", currentUser.id).maybeSingle(),
@@ -28,6 +29,15 @@ export default async function Home() {
     initialBrandVoice = brandVoice ?? null;
     weeklyQuota = profile?.weekly_credit_allocation ?? WEEKLY_POST_QUOTA;
     isAdmin = profile?.is_admin ?? false;
+
+    if (isAdmin) {
+      const { data: errors } = await supabase
+        .from("error_logs")
+        .select("*")
+        .eq("resolved", false)
+        .order("created_at", { ascending: false });
+      unresolvedErrors = errors ?? [];
+    }
   }
 
   return (
@@ -38,6 +48,7 @@ export default async function Home() {
       weeklyQuota={weeklyQuota}
       isAdmin={isAdmin}
       tokenMarkup={tokenMarkup}
+      initialUnresolvedErrors={unresolvedErrors}
     />
   );
 }

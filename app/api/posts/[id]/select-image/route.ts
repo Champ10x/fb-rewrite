@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { overlayTextOnImage } from "@/lib/ai/image-text-overlay";
 import { writeAuditLog } from "@/lib/audit";
+import { logError } from "@/lib/error-log";
 
 const MAX_TEXT_LEN = 120;
 const RATE_LIMIT = 15;
@@ -110,6 +111,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ analysis: updatedAnalysis });
   } catch (err) {
     console.error("select-image failed", err);
+    await logError(supabase, { source: "select-image", message: "Image text overlay failed", err, userId: user.id, postId: id });
     return NextResponse.json(
       { error: "ai_failed", message: "Could not create image — please try again." },
       { status: 502 },

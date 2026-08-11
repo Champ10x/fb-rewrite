@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
+import { logError } from "@/lib/error-log";
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const ALLOWED_TYPES: Record<string, string> = {
@@ -108,6 +109,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ analysis: updatedAnalysis });
   } catch (err) {
     console.error("upload-image failed", err);
+    await logError(supabase, { source: "upload-image", message: "Image upload failed", err, userId: user.id, postId: id });
     return NextResponse.json(
       { error: "upload_failed", message: "Could not upload image — please try again." },
       { status: 502 },

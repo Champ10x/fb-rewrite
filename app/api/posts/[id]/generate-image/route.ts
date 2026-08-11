@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { generateImage } from "@/lib/ai/image";
 import { writeAuditLog } from "@/lib/audit";
 import { recordStyleEdit } from "@/lib/ai/style-learning";
+import { logError } from "@/lib/error-log";
 
 const MAX_PROMPT_LEN = 1000;
 const RATE_LIMIT = 15;
@@ -98,6 +99,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ analysis: updatedAnalysis });
   } catch (err) {
     console.error("generate-image failed", err);
+    await logError(supabase, { source: "generate-image", message: "Image generation failed", err, userId: user.id, postId: id });
     return NextResponse.json(
       { error: "ai_failed", message: "Could not create image — please try again." },
       { status: 502 },

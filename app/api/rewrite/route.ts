@@ -4,6 +4,7 @@ import { generateRewrite } from "@/lib/ai/rewrite";
 import { writeAuditLog } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { logError } from "@/lib/error-log";
 import { getWeekStart } from "@/lib/quota";
 import { isPlatformId } from "@/lib/platforms";
 import { isToneId } from "@/lib/tones";
@@ -174,6 +175,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ post: updatedPost ?? post, analysis });
   } catch (err) {
     console.error("rewrite failed", err);
+    await logError(supabase, { source: "rewrite", message: "AI rewrite failed", err, userId: user.id, postId: post.id });
 
     const { data: failedAnalysis } = await supabase
       .from("analyses")

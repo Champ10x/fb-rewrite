@@ -154,3 +154,16 @@ export type SessionFeedback = {
   session_tries: number | null;
   created_at: string;
 };
+
+export type ErrorLog = {
+  id: string;
+  source: string;
+  message: string;
+  detail: string | null;
+  user_id: string | null;
+  post_id: string | null;
+  resolved: boolean;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  created_at: string;
+};

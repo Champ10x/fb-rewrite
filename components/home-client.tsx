@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import type { Analysis, BrandVoice, CurrentUser, PostWithRelations } from "@/lib/types";
+import type { Analysis, BrandVoice, CurrentUser, ErrorLog, PostWithRelations } from "@/lib/types";
 import { latestAnalysis, sortPosts } from "@/lib/posts";
 import { scoreColor, scoreColorClasses } from "@/lib/scoring";
 import { getWeekStart } from "@/lib/quota";
@@ -25,6 +25,7 @@ export function HomeClient({
   weeklyQuota,
   isAdmin,
   tokenMarkup,
+  initialUnresolvedErrors,
 }: {
   initialPosts: PostWithRelations[];
   currentUser: CurrentUser | null;
@@ -32,8 +33,11 @@ export function HomeClient({
   weeklyQuota: number;
   isAdmin: boolean;
   tokenMarkup: number;
+  initialUnresolvedErrors: ErrorLog[];
 }) {
   const [posts, setPosts] = useState<PostWithRelations[]>(initialPosts);
+  const [unresolvedErrors, setUnresolvedErrors] = useState<ErrorLog[]>(initialUnresolvedErrors);
+  const [resolvingErrorId, setResolvingErrorId] = useState<string | null>(null);
   const [brandVoice, setBrandVoice] = useState<BrandVoice | null>(initialBrandVoice);
   const [showWizard, setShowWizard] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
@@ -517,6 +521,18 @@ export function HomeClient({
     }
   }
 
+  async function handleResolveError(id: string) {
+    setResolvingErrorId(id);
+    try {
+      const res = await fetch(`/api/admin/errors/${id}/resolve`, { method: "POST" });
+      if (res.ok) {
+        setUnresolvedErrors((prev) => prev.filter((e) => e.id !== id));
+      }
+    } finally {
+      setResolvingErrorId(null);
+    }
+  }
+
   async function handleSubmitFeedback() {
     if (feedbackRating == null) return;
     setFeedbackStatus("sending");
@@ -564,6 +580,33 @@ export function HomeClient({
       <Sidebar isAdmin={isAdmin} />
       <main className="flex-1 pb-24">
       <div className="mx-auto max-w-3xl px-4 pt-12 sm:px-6">
+        {isAdmin && unresolvedErrors.length > 0 && (
+          <div className="mb-4 rounded-lg border border-red-300 bg-red-50 p-3">
+            <p className="mb-2 text-sm font-semibold text-red-800">
+              {unresolvedErrors.length} unresolved error{unresolvedErrors.length > 1 ? "s" : ""}
+            </p>
+            <ul className="space-y-2">
+              {unresolvedErrors.map((e) => (
+                <li key={e.id} className="flex items-start justify-between gap-3 rounded border border-red-200 bg-white px-3 py-2 text-sm">
+                  <div>
+                    <p className="font-medium text-red-800">
+                      [{e.source}] {e.message}
+                    </p>
+                    <p className="mt-0.5 text-xs text-neutral-400">{new Date(e.created_at).toLocaleString()}</p>
+                  </div>
+                  <button
+                    onClick={() => handleResolveError(e.id)}
+                    disabled={resolvingErrorId === e.id}
+                    className="shrink-0 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {resolvingErrorId === e.id ? "Resolving…" : "Resolve"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="mb-4 flex items-center gap-3 rounded-lg border border-neutral-200 bg-white px-3 py-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/api/qr-code" alt="QR code to open fb-rewrite" width={56} height={56} className="rounded" />

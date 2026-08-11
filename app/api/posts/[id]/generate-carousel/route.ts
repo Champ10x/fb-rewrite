@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { generateImage } from "@/lib/ai/image";
 import { CAROUSEL_SLIDE_COUNT } from "@/lib/ai/carousel";
 import { writeAuditLog } from "@/lib/audit";
+import { logError } from "@/lib/error-log";
 
 export const maxDuration = 60;
 
@@ -105,6 +106,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ analysis: updatedAnalysis });
   } catch (err) {
     console.error("generate-carousel failed", err);
+    await logError(supabase, { source: "generate-carousel", message: "Carousel generation failed", err, userId: user.id, postId: id });
     return NextResponse.json(
       { error: "ai_failed", message: "Could not create carousel — please try again." },
       { status: 502 },
