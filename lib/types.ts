@@ -87,7 +87,8 @@ export type CurrentUser = {
 export type Profile = {
   id: string;
   email: string | null;
-  weekly_credit_allocation: number;
+  monthly_text_quota: number;
+  monthly_image_quota: number;
   expiry_date: string | null;
   ip_address: string | null;
   browser: string | null;
@@ -140,7 +141,8 @@ export type AuditLog = {
 
 export type AppSettings = {
   id: number;
-  default_weekly_credit_allocation: number;
+  default_monthly_text_quota: number;
+  default_monthly_image_quota: number;
   token_display_markup: number;
   updated_at: string;
 };

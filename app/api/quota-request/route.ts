@@ -21,7 +21,7 @@ export async function POST(request: Request) {
 
   await sendNotificationEmail(
     "fb-rewrite: quota increase request",
-    `${profile.email ?? user.id} has used their weekly quota and requested more posts.\n\nMessage: ${message || "(no message)"}\n\nReview at /admin.`,
+    `${profile.email ?? user.id} has used their monthly quota and requested more.\n\nMessage: ${message || "(no message)"}\n\nReview at /admin.`,
   );
 
   return NextResponse.json({ ok: true });

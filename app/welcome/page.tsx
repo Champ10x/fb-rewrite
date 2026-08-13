@@ -213,7 +213,7 @@ export default async function WelcomePage() {
               "Authoritative, Educational, or Story tone, on top of your brand voice",
               "Optional target length in characters",
               "Duplicate-post detection so you don't repost by accident",
-              "Free weekly quota that resets every Monday",
+              "Free monthly quota for text and image generations that resets on the 1st",
             ].map((f) => (
               <div key={f} className="flex items-start gap-2.5 rounded-lg border border-neutral-200 p-3.5 text-sm text-neutral-700">
                 <Dot /> {f}

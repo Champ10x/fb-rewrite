@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { countPostsSince, getWeekStart } from "./quota";
+import { countPostsSince, getMonthStart } from "./quota";
 
-describe("getWeekStart", () => {
-  it("returns the same Monday when today is Monday", () => {
-    const monday = new Date(Date.UTC(2026, 0, 5, 15, 30)); // Jan 5 2026 is a Monday
-    expect(getWeekStart(monday).toISOString()).toBe("2026-01-05T00:00:00.000Z");
+describe("getMonthStart", () => {
+  it("returns the 1st of the current month when today is mid-month", () => {
+    const midMonth = new Date(Date.UTC(2026, 2, 15, 10, 0)); // March 15 2026
+    expect(getMonthStart(midMonth).toISOString()).toBe("2026-03-01T00:00:00.000Z");
   });
 
-  it("returns the prior Monday for a Wednesday", () => {
-    const wednesday = new Date(Date.UTC(2026, 0, 7, 10, 0));
-    expect(getWeekStart(wednesday).toISOString()).toBe("2026-01-05T00:00:00.000Z");
+  it("returns the 1st even when today already is the 1st", () => {
+    const firstOfMonth = new Date(Date.UTC(2026, 2, 1, 23, 59));
+    expect(getMonthStart(firstOfMonth).toISOString()).toBe("2026-03-01T00:00:00.000Z");
   });
 
-  it("returns the prior Monday for a Sunday (end of week)", () => {
-    const sunday = new Date(Date.UTC(2026, 0, 11, 23, 59));
-    expect(getWeekStart(sunday).toISOString()).toBe("2026-01-05T00:00:00.000Z");
+  it("handles December correctly", () => {
+    const december = new Date(Date.UTC(2026, 11, 25, 5, 0));
+    expect(getMonthStart(december).toISOString()).toBe("2026-12-01T00:00:00.000Z");
   });
 });
 

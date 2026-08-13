@@ -39,7 +39,8 @@ export async function POST() {
   sheet.columns = [
     { header: "Email", key: "email", width: 30 },
     { header: "Date joined", key: "created_at", width: 20 },
-    { header: "Credits/week", key: "weekly_credit_allocation", width: 14 },
+    { header: "Text/month", key: "monthly_text_quota", width: 12 },
+    { header: "Images/month", key: "monthly_image_quota", width: 13 },
     { header: "Status", key: "status", width: 12 },
     { header: "Expiry", key: "expiry_date", width: 20 },
     { header: "IP address", key: "ip_address", width: 18 },

@@ -18,8 +18,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
-  if (typeof body.weekly_credit_allocation === "number" && body.weekly_credit_allocation >= 0) {
-    updates.weekly_credit_allocation = Math.floor(body.weekly_credit_allocation);
+  if (typeof body.monthly_text_quota === "number" && body.monthly_text_quota >= 0) {
+    updates.monthly_text_quota = Math.floor(body.monthly_text_quota);
+  }
+  if (typeof body.monthly_image_quota === "number" && body.monthly_image_quota >= 0) {
+    updates.monthly_image_quota = Math.floor(body.monthly_image_quota);
   }
   if (typeof body.status === "string" && VALID_STATUSES.includes(body.status)) {
     updates.status = body.status;

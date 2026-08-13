@@ -4,7 +4,8 @@ import { useState } from "react";
 import type { AppSettings } from "@/lib/types";
 
 export function AdminSettings({ initialSettings }: { initialSettings: AppSettings }) {
-  const [defaultCredits, setDefaultCredits] = useState(initialSettings.default_weekly_credit_allocation);
+  const [defaultTextQuota, setDefaultTextQuota] = useState(initialSettings.default_monthly_text_quota);
+  const [defaultImageQuota, setDefaultImageQuota] = useState(initialSettings.default_monthly_image_quota);
   const [tokenMarkup, setTokenMarkup] = useState(initialSettings.token_display_markup);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -19,7 +20,8 @@ export function AdminSettings({ initialSettings }: { initialSettings: AppSetting
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          default_weekly_credit_allocation: defaultCredits,
+          default_monthly_text_quota: defaultTextQuota,
+          default_monthly_image_quota: defaultImageQuota,
           token_display_markup: tokenMarkup,
         }),
       });
@@ -40,8 +42,8 @@ export function AdminSettings({ initialSettings }: { initialSettings: AppSetting
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500">New user defaults</h2>
         <div className="max-w-md rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <label className="block text-sm font-medium text-neutral-700" htmlFor="default-credits">
-            Default rewrites per week for new users
+          <label className="block text-sm font-medium text-neutral-700" htmlFor="default-text-quota">
+            Default text generations per month for new users
           </label>
           <p className="mt-1 text-xs text-neutral-500">
             Applied automatically when someone signs up. Existing users are unaffected — edit them individually from
@@ -49,11 +51,30 @@ export function AdminSettings({ initialSettings }: { initialSettings: AppSetting
           </p>
           <div className="mt-3 flex items-center gap-3">
             <input
-              id="default-credits"
+              id="default-text-quota"
               type="number"
               min={0}
-              value={defaultCredits}
-              onChange={(e) => setDefaultCredits(Number(e.target.value))}
+              value={defaultTextQuota}
+              onChange={(e) => setDefaultTextQuota(Number(e.target.value))}
+              className="w-24 rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-500"
+            />
+          </div>
+        </div>
+
+        <div className="mt-3 max-w-md rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <label className="block text-sm font-medium text-neutral-700" htmlFor="default-image-quota">
+            Default image generations per month for new users
+          </label>
+          <p className="mt-1 text-xs text-neutral-500">
+            Each carousel counts as 5 toward this quota, since it generates 5 images in one go.
+          </p>
+          <div className="mt-3 flex items-center gap-3">
+            <input
+              id="default-image-quota"
+              type="number"
+              min={0}
+              value={defaultImageQuota}
+              onChange={(e) => setDefaultImageQuota(Number(e.target.value))}
               className="w-24 rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-500"
             />
           </div>

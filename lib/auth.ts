@@ -4,7 +4,8 @@ import type { Profile } from "@/lib/types";
 
 const DEFAULT_PROFILE: Omit<Profile, "id" | "created_at" | "updated_at"> = {
   email: null,
-  weekly_credit_allocation: 3,
+  monthly_text_quota: 60,
+  monthly_image_quota: 10,
   expiry_date: null,
   ip_address: null,
   browser: null,

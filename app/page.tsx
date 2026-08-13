@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { HomeClient } from "@/components/home-client";
-import { WEEKLY_POST_QUOTA } from "@/lib/quota";
+import { DEFAULT_MONTHLY_TEXT_QUOTA, DEFAULT_MONTHLY_IMAGE_QUOTA, getImageUsageThisMonth } from "@/lib/quota";
 import { DEFAULT_TOKEN_DISPLAY_MARKUP } from "@/lib/tokens";
 import type { BrandVoice, ErrorLog, PostWithRelations } from "@/lib/types";
 
@@ -18,17 +18,22 @@ export default async function Home() {
   const currentUser = userData?.user ? { id: userData.user.id, email: userData.user.email ?? "" } : null;
 
   let initialBrandVoice: BrandVoice | null = null;
-  let weeklyQuota = WEEKLY_POST_QUOTA;
+  let textQuota = DEFAULT_MONTHLY_TEXT_QUOTA;
+  let imageQuota = DEFAULT_MONTHLY_IMAGE_QUOTA;
   let isAdmin = false;
   let unresolvedErrors: ErrorLog[] = [];
+  let initialImagesUsedThisMonth = 0;
   if (currentUser) {
-    const [{ data: brandVoice }, { data: profile }] = await Promise.all([
+    const [{ data: brandVoice }, { data: profile }, imagesUsed] = await Promise.all([
       supabase.from("brand_voices").select("*").eq("user_id", currentUser.id).maybeSingle(),
-      supabase.from("profiles").select("weekly_credit_allocation, is_admin").eq("id", currentUser.id).maybeSingle(),
+      supabase.from("profiles").select("monthly_text_quota, monthly_image_quota, is_admin").eq("id", currentUser.id).maybeSingle(),
+      getImageUsageThisMonth(supabase, currentUser.id),
     ]);
     initialBrandVoice = brandVoice ?? null;
-    weeklyQuota = profile?.weekly_credit_allocation ?? WEEKLY_POST_QUOTA;
+    textQuota = profile?.monthly_text_quota ?? DEFAULT_MONTHLY_TEXT_QUOTA;
+    imageQuota = profile?.monthly_image_quota ?? DEFAULT_MONTHLY_IMAGE_QUOTA;
     isAdmin = profile?.is_admin ?? false;
+    initialImagesUsedThisMonth = imagesUsed;
 
     if (isAdmin) {
       const { data: errors } = await supabase
@@ -45,7 +50,9 @@ export default async function Home() {
       initialPosts={initialPosts}
       currentUser={currentUser}
       initialBrandVoice={initialBrandVoice}
-      weeklyQuota={weeklyQuota}
+      textQuota={textQuota}
+      imageQuota={imageQuota}
+      initialImagesUsedThisMonth={initialImagesUsedThisMonth}
       isAdmin={isAdmin}
       tokenMarkup={tokenMarkup}
       initialUnresolvedErrors={unresolvedErrors}

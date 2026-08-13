@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { Analysis, BrandVoice, CurrentUser, ErrorLog, PostWithRelations } from "@/lib/types";
 import { latestAnalysis, sortPosts } from "@/lib/posts";
 import { scoreColor, scoreColorClasses } from "@/lib/scoring";
-import { getWeekStart } from "@/lib/quota";
+import { getMonthStart } from "@/lib/quota";
 import { displayTokens } from "@/lib/tokens";
 import { getCharCount, getWordCount } from "@/lib/text-stats";
 import { PLATFORMS, type PlatformId } from "@/lib/platforms";
@@ -22,7 +22,9 @@ export function HomeClient({
   initialPosts,
   currentUser,
   initialBrandVoice,
-  weeklyQuota,
+  textQuota,
+  imageQuota,
+  initialImagesUsedThisMonth,
   isAdmin,
   tokenMarkup,
   initialUnresolvedErrors,
@@ -30,12 +32,15 @@ export function HomeClient({
   initialPosts: PostWithRelations[];
   currentUser: CurrentUser | null;
   initialBrandVoice: BrandVoice | null;
-  weeklyQuota: number;
+  textQuota: number;
+  imageQuota: number;
+  initialImagesUsedThisMonth: number;
   isAdmin: boolean;
   tokenMarkup: number;
   initialUnresolvedErrors: ErrorLog[];
 }) {
   const [posts, setPosts] = useState<PostWithRelations[]>(initialPosts);
+  const [imagesUsedThisMonth, setImagesUsedThisMonth] = useState(initialImagesUsedThisMonth);
   const [unresolvedErrors, setUnresolvedErrors] = useState<ErrorLog[]>(initialUnresolvedErrors);
   const [resolvingErrorId, setResolvingErrorId] = useState<string | null>(null);
   const [brandVoice, setBrandVoice] = useState<BrandVoice | null>(initialBrandVoice);
@@ -92,10 +97,11 @@ export function HomeClient({
 
   const quotaUsed = useMemo(() => {
     if (!currentUser) return 0;
-    const weekStart = getWeekStart();
-    return posts.filter((p) => p.user_id === currentUser.id && new Date(p.created_at) >= weekStart).length;
+    const monthStart = getMonthStart();
+    return posts.filter((p) => p.user_id === currentUser.id && new Date(p.created_at) >= monthStart).length;
   }, [posts, currentUser]);
-  const quotaExceeded = !!currentUser && quotaUsed >= weeklyQuota;
+  const quotaExceeded = !!currentUser && quotaUsed >= textQuota;
+  const imageQuotaExceeded = !!currentUser && imagesUsedThisMonth >= imageQuota;
 
   const lifetimeStats = useMemo(() => {
     if (!currentUser) return { tries: 0, tokens: 0 };
@@ -276,6 +282,7 @@ export function HomeClient({
       if (data.analysis?.image_tokens_used != null) {
         setSessionTokens((prev) => prev + data.analysis.image_tokens_used);
       }
+      setImagesUsedThisMonth((prev) => prev + 1);
       setShowImagePromptEditor(false);
     } catch {
       setRewriteError("Could not create image — please try again.");
@@ -362,6 +369,7 @@ export function HomeClient({
       if (data.analysis?.carousel_tokens_used != null) {
         setSessionTokens((prev) => prev + data.analysis.carousel_tokens_used);
       }
+      setImagesUsedThisMonth((prev) => prev + prompts.length);
       setShowCarouselEditor(false);
     } catch {
       setCarouselError("Could not create carousel — please try again.");
@@ -620,7 +628,10 @@ export function HomeClient({
           <div className="sticky top-0 z-20 mb-4 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-xs text-neutral-500 shadow-sm">
             <span className="font-medium text-neutral-700">{currentUser.email}</span>
             <span>
-              {quotaUsed}/{weeklyQuota} posts this week
+              {quotaUsed}/{textQuota} text generations this month
+            </span>
+            <span>
+              {imagesUsedThisMonth}/{imageQuota} image generations this month
             </span>
             <span>Session tokens used: {displayTokens(sessionTokens, tokenMarkup) ?? 0}</span>
             <span>Lifetime tries: {lifetimeStats.tries}</span>
@@ -683,10 +694,10 @@ export function HomeClient({
         <section className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
           {quotaExceeded ? (
             <div>
-              <p className="text-base font-semibold text-neutral-900">Thanks for using fb-rewrite this week! 🎉</p>
+              <p className="text-base font-semibold text-neutral-900">Thanks for using fb-rewrite this month! 🎉</p>
               <p className="mt-1 text-sm text-neutral-500">
-                You've used all {weeklyQuota} of your posts. Your quota resets Monday — or send a quick note
-                below and we'll bump it up.
+                You've used all {textQuota} of your text generations. Your quota resets on the 1st — or send a
+                quick note below and we'll bump it up.
               </p>
               {quotaRequestStatus === "sent" ? (
                 <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
@@ -947,6 +958,12 @@ export function HomeClient({
                       <label htmlFor="image-prompt" className="mb-1 block text-xs text-neutral-500">
                         Image prompt — edit before generating
                       </label>
+                      {imageQuotaExceeded && (
+                        <p className="mb-1 text-xs text-amber-600">
+                          You've used all {imageQuota} of your image generations this month — you can still upload
+                          your own image below.
+                        </p>
+                      )}
                       <textarea
                         id="image-prompt"
                         rows={3}
@@ -958,7 +975,7 @@ export function HomeClient({
                       <div className="mt-2 flex flex-wrap items-center gap-3">
                         <button
                           onClick={handleGenerateImage}
-                          disabled={generatingImage || uploadingImage || !imagePromptDraft.trim()}
+                          disabled={generatingImage || uploadingImage || imageQuotaExceeded || !imagePromptDraft.trim()}
                           className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           {generatingImage && <Spinner />}
@@ -1004,10 +1021,16 @@ export function HomeClient({
 
                 {carouselError && <p className="mb-2 text-sm text-red-600">{carouselError}</p>}
 
+                {imageQuotaExceeded && (
+                  <p className="mb-2 text-xs text-amber-600">
+                    You've used all {imageQuota} of your image generations this month — a carousel needs 5.
+                  </p>
+                )}
+
                 {!showCarouselEditor && !activeAnalysis.carousel_image_urls?.length && (
                   <button
                     onClick={handleDraftCarousel}
-                    disabled={draftingCarousel}
+                    disabled={draftingCarousel || imageQuotaExceeded}
                     className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {draftingCarousel && <Spinner />}
@@ -1037,7 +1060,7 @@ export function HomeClient({
                     <div className="mt-2 flex items-center gap-3">
                       <button
                         onClick={handleGenerateCarousel}
-                        disabled={generatingCarousel || carouselDrafts.some((p) => !p.trim())}
+                        disabled={generatingCarousel || imageQuotaExceeded || carouselDrafts.some((p) => !p.trim())}
                         className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         {generatingCarousel && <Spinner />}

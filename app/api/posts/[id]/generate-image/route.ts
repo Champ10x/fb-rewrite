@@ -5,6 +5,7 @@ import { generateImage } from "@/lib/ai/image";
 import { writeAuditLog } from "@/lib/audit";
 import { recordStyleEdit } from "@/lib/ai/style-learning";
 import { logError } from "@/lib/error-log";
+import { getImageUsageThisMonth } from "@/lib/quota";
 
 const MAX_PROMPT_LEN = 1000;
 const RATE_LIMIT = 15;
@@ -20,8 +21,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const supabase = await createClient();
-  const { user, response } = await requireUser(supabase);
+  const { user, profile, response } = await requireUser(supabase);
   if (!user) return response;
+
+  const imagesUsed = await getImageUsageThisMonth(supabase, user.id);
+  if (imagesUsed >= profile.monthly_image_quota) {
+    return NextResponse.json(
+      {
+        error: "quota_exceeded",
+        message: `You've used all ${profile.monthly_image_quota} of your image generations this month — your quota resets on the 1st.`,
+      },
+      { status: 403 },
+    );
+  }
 
   const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60 * 1000).toISOString();
   const { count: recentGenerations } = await supabase

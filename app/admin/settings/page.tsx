@@ -11,7 +11,8 @@ export default async function AdminSettingsPage() {
       initialSettings={
         (settings as AppSettings | null) ?? {
           id: 1,
-          default_weekly_credit_allocation: 3,
+          default_monthly_text_quota: 60,
+          default_monthly_image_quota: 10,
           token_display_markup: 1.5,
           updated_at: "",
         }

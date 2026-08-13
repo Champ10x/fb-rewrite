@@ -43,7 +43,8 @@ export function AdminDashboard({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          weekly_credit_allocation: profile.weekly_credit_allocation,
+          monthly_text_quota: profile.monthly_text_quota,
+          monthly_image_quota: profile.monthly_image_quota,
           status: profile.status,
           expiry_date: profile.expiry_date,
         }),
@@ -104,12 +105,13 @@ export function AdminDashboard({
             </div>
           </div>
           <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white shadow-sm">
-            <table className="w-full min-w-[1100px] text-left text-sm">
+            <table className="w-full min-w-[1200px] text-left text-sm">
               <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-400">
                 <tr>
                   <th className="px-4 py-2 font-medium">Email</th>
                   <th className="px-4 py-2 font-medium">Date joined</th>
-                  <th className="px-4 py-2 font-medium">Credits/week</th>
+                  <th className="px-4 py-2 font-medium">Text/month</th>
+                  <th className="px-4 py-2 font-medium">Images/month</th>
                   <th className="px-4 py-2 font-medium">Status</th>
                   <th className="px-4 py-2 font-medium">Expiry</th>
                   <th className="px-4 py-2 font-medium">IP address</th>
@@ -136,8 +138,17 @@ export function AdminDashboard({
                       <input
                         type="number"
                         min={0}
-                        value={profile.weekly_credit_allocation}
-                        onChange={(e) => updateLocal(profile.id, { weekly_credit_allocation: Number(e.target.value) })}
+                        value={profile.monthly_text_quota}
+                        onChange={(e) => updateLocal(profile.id, { monthly_text_quota: Number(e.target.value) })}
+                        className="w-20 rounded-lg border border-neutral-300 px-2 py-1 text-sm outline-none focus:border-neutral-500"
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        value={profile.monthly_image_quota}
+                        onChange={(e) => updateLocal(profile.id, { monthly_image_quota: Number(e.target.value) })}
                         className="w-20 rounded-lg border border-neutral-300 px-2 py-1 text-sm outline-none focus:border-neutral-500"
                       />
                     </td>
